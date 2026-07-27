@@ -37,7 +37,7 @@ fun terminalCommandForProject(
     basePath: String?,
     osName: String = System.getProperty("os.name").orEmpty(),
     shellPath: String? = System.getenv("SHELL"),
-): List<String> {
+): List<String>? {
     val wslPath = parseWslUncPath(basePath)
     return when {
         osName.startsWith("Windows", ignoreCase = true) && wslPath != null -> listOf(
@@ -51,7 +51,7 @@ fun terminalCommandForProject(
             "-lc",
             RUN_PI_IN_LOGIN_SHELL.trim(),
         )
-        osName.startsWith("Windows", ignoreCase = true) -> listOf("pi")
+        osName.startsWith("Windows", ignoreCase = true) -> null
         else -> loginShellCommand(shellPath)
     }
 }

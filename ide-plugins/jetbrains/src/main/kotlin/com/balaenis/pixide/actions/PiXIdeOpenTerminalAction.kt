@@ -21,13 +21,17 @@ class PiXIdeOpenTerminalAction : DumbAwareAction() {
         ApplicationManager.getApplication().invokeLater {
             try {
                 val workingDirectory = terminalWorkingDirectoryForProject(project.basePath)
-                TerminalToolWindowTabsManager.getInstance(project)
+                val shellCommand = terminalCommandForProject(project.basePath)
+                val tabBuilder = TerminalToolWindowTabsManager.getInstance(project)
                     .createTabBuilder()
                     .workingDirectory(workingDirectory)
                     .tabName("Pi")
                     .requestFocus(true)
-                    .shellCommand(terminalCommandForProject(project.basePath))
-                    .createTab()
+                if (shellCommand != null) tabBuilder.shellCommand(shellCommand)
+                val tab = tabBuilder.createTab()
+                if (shellCommand == null) {
+                    tab.view.createSendTextBuilder().shouldExecute().send("pi")
+                }
                 ToolWindowManager.getInstance(project).getToolWindow("Terminal")?.activate(null)
             } catch (error: Throwable) {
                 PiXIdeAttachSelectionAction.notify(

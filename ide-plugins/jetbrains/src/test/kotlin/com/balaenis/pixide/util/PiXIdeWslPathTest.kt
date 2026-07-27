@@ -4,6 +4,7 @@ package com.balaenis.pixide.util
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -41,7 +42,9 @@ class PiXIdeWslPathTest {
 
     @Test
     fun buildsWindowsWslTerminalCommandThroughLoginShell() {
-        val command = terminalCommandForProject("\\\\wsl.localhost\\Ubuntu\\home\\julian\\repo", osName = "Windows 11")
+        val command = assertNotNull(
+            terminalCommandForProject("\\\\wsl.localhost\\Ubuntu\\home\\julian\\repo", osName = "Windows 11"),
+        )
         assertEquals(listOf("wsl.exe", "-d", "Ubuntu", "--cd", "/home/julian/repo", "--exec", "/bin/sh", "-lc"), command.take(8))
         assertTrue(command.last().contains("exec \"${'$'}shell\" -lic pi"))
         assertEquals(
@@ -55,8 +58,8 @@ class PiXIdeWslPathTest {
     }
 
     @Test
-    fun keepsWindowsNativeTerminalCommandOutsideWslProjects() {
-        assertEquals(listOf("pi"), terminalCommandForProject("C:\\Users\\julian\\repo", osName = "Windows 11"))
+    fun usesConfiguredShellForWindowsNativeProjects() {
+        assertNull(terminalCommandForProject("C:\\Users\\julian\\repo", osName = "Windows 11"))
     }
 
     @Test

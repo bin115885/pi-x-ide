@@ -63,8 +63,9 @@ class PiXIdeProjectService(
         }
     }
 
-    fun publishCurrentSelection() {
-        val snapshot = currentSnapshot()
+    fun publishCurrentSelection() = publishSelection(currentSnapshot())
+
+    fun publishSelection(snapshot: EditorSelectionSnapshot?) {
         if (snapshot != null) {
             latestSnapshot = snapshot
             server?.broadcastNotification("selection_changed", snapshot.copy(receivedAt = System.currentTimeMillis()))

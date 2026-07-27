@@ -9,7 +9,6 @@ import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
-import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 
@@ -20,9 +19,7 @@ class PiXIdeAttachSelectionAction : DumbAwareAction() {
 
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
-        val contextFile = event.getData(CommonDataKeys.VIRTUAL_FILE)
-            ?.takeIf { it.isInLocalFileSystem }
-            ?: (event.getData(CommonDataKeys.NAVIGATABLE) as? OpenFileDescriptor)?.file
+        val contextFile = PiXIdeSnapshotBuilder.contextFile(event.dataContext)
         val snapshot = PiXIdeSnapshotBuilder.snapshot(
             project = project,
             preferredEditor = event.getData(CommonDataKeys.EDITOR),

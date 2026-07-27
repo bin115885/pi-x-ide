@@ -7,11 +7,14 @@ import com.balaenis.pixide.protocol.IDE_SOURCE
 import com.balaenis.pixide.protocol.Position
 import com.balaenis.pixide.protocol.ProtocolRange
 import com.balaenis.pixide.protocol.SelectionRange
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.Document
 import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Ref
 import com.intellij.openapi.util.TextRange
@@ -36,6 +39,13 @@ object PiXIdeSnapshotBuilder {
         application.invokeAndWait { ref.set(snapshotOnEdt(project, preferredEditor, contextFile)) }
         return ref.get()
     }
+
+    fun contextFile(dataContext: DataContext): VirtualFile? =
+        dataContext.getData(CommonDataKeys.VIRTUAL_FILE)
+            ?.takeIf { it.isInLocalFileSystem }
+            ?: (dataContext.getData(CommonDataKeys.NAVIGATABLE) as? OpenFileDescriptor)
+                ?.file
+                ?.takeIf { it.isInLocalFileSystem }
 
     fun buildSnapshot(
         filePath: String,

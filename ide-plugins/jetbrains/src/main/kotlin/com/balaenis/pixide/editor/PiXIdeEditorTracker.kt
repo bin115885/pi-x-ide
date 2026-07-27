@@ -4,7 +4,9 @@ package com.balaenis.pixide.editor
 
 import com.balaenis.pixide.PiXIdeProjectService
 import com.balaenis.pixide.util.PiXIdeDebouncer
+import com.intellij.ide.DataManager
 import com.intellij.openapi.Disposable
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.editor.EditorFactory
 import com.intellij.openapi.editor.event.CaretEvent
 import com.intellij.openapi.editor.event.CaretListener
@@ -46,15 +48,15 @@ class PiXIdeEditorTracker(
         val multicaster = EditorFactory.getInstance().eventMulticaster
         multicaster.addSelectionListener(
             object : SelectionListener {
-                override fun selectionChanged(e: SelectionEvent) = publishSoon()
+                override fun selectionChanged(e: SelectionEvent) = publishSoon(e.editor)
             },
             parentDisposable,
         )
         multicaster.addCaretListener(
             object : CaretListener {
-                override fun caretPositionChanged(event: CaretEvent) = publishSoon()
-                override fun caretAdded(event: CaretEvent) = publishSoon()
-                override fun caretRemoved(event: CaretEvent) = publishSoon()
+                override fun caretPositionChanged(event: CaretEvent) = publishSoon(event.editor)
+                override fun caretAdded(event: CaretEvent) = publishSoon(event.editor)
+                override fun caretRemoved(event: CaretEvent) = publishSoon(event.editor)
             },
             parentDisposable,
         )
@@ -68,7 +70,19 @@ class PiXIdeEditorTracker(
         started = false
     }
 
-    private fun publishSoon() {
-        debouncer.schedule { service.publishCurrentSelection() }
+    private fun publishSoon(editor: Editor? = null) {
+        debouncer.schedule {
+            if (editor == null) {
+                service.publishCurrentSelection()
+                return@schedule
+            }
+            val dataContext = DataManager.getInstance().getDataContext(editor.contentComponent)
+            val snapshot = PiXIdeSnapshotBuilder.snapshot(
+                project = project,
+                preferredEditor = editor,
+                contextFile = PiXIdeSnapshotBuilder.contextFile(dataContext),
+            )
+            service.publishSelection(snapshot)
+        }
     }
 }

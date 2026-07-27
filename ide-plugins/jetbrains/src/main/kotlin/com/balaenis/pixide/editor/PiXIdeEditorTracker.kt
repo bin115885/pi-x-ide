@@ -80,7 +80,7 @@ class PiXIdeEditorTracker(
             val snapshot = PiXIdeSnapshotBuilder.snapshot(
                 project = project,
                 preferredEditor = editor,
-                contextFile = PiXIdeSnapshotBuilder.contextFile(dataContext),
+                contextFile = PiXIdeSnapshotBuilder.contextFile(dataContext, editor),
             )
             service.publishSelection(snapshot)
         }

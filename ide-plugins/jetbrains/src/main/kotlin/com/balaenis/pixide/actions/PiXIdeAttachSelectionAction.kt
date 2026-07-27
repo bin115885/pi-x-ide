@@ -19,10 +19,11 @@ class PiXIdeAttachSelectionAction : DumbAwareAction() {
 
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
-        val contextFile = PiXIdeSnapshotBuilder.contextFile(event.dataContext)
+        val editor = event.getData(CommonDataKeys.EDITOR)
+        val contextFile = editor?.let { PiXIdeSnapshotBuilder.contextFile(event.dataContext, it) }
         val snapshot = PiXIdeSnapshotBuilder.snapshot(
             project = project,
-            preferredEditor = event.getData(CommonDataKeys.EDITOR),
+            preferredEditor = editor,
             contextFile = contextFile,
         )
         attach(project, snapshot)

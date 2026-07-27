@@ -7,6 +7,9 @@ import com.balaenis.pixide.protocol.IDE_SOURCE
 import com.balaenis.pixide.protocol.Position
 import com.balaenis.pixide.protocol.ProtocolRange
 import com.balaenis.pixide.protocol.SelectionRange
+import com.intellij.diff.contents.DocumentContent
+import com.intellij.diff.requests.ContentDiffRequest
+import com.intellij.diff.tools.util.DiffDataKeys
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.DataContext
 import com.intellij.openapi.application.ApplicationManager
@@ -40,12 +43,22 @@ object PiXIdeSnapshotBuilder {
         return ref.get()
     }
 
-    fun contextFile(dataContext: DataContext): VirtualFile? =
-        dataContext.getData(CommonDataKeys.VIRTUAL_FILE)
-            ?.takeIf { it.isInLocalFileSystem }
-            ?: (dataContext.getData(CommonDataKeys.NAVIGATABLE) as? OpenFileDescriptor)
-                ?.file
+    fun contextFile(dataContext: DataContext, editor: Editor): VirtualFile? =
+        ApplicationManager.getApplication().runReadAction<VirtualFile?> {
+            val diffFile = (dataContext.getData(DiffDataKeys.DIFF_REQUEST) as? ContentDiffRequest)
+                ?.contents
+                ?.asSequence()
+                ?.filterIsInstance<DocumentContent>()
+                ?.firstOrNull { it.document === editor.document }
+                ?.highlightFile
                 ?.takeIf { it.isInLocalFileSystem }
+            diffFile
+                ?: dataContext.getData(CommonDataKeys.VIRTUAL_FILE)
+                    ?.takeIf { it.isInLocalFileSystem }
+                ?: (dataContext.getData(CommonDataKeys.NAVIGATABLE) as? OpenFileDescriptor)
+                    ?.file
+                    ?.takeIf { it.isInLocalFileSystem }
+        }
 
     fun buildSnapshot(
         filePath: String,

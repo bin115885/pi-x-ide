@@ -9,11 +9,13 @@ import com.balaenis.pixide.protocol.ProtocolRange
 import com.balaenis.pixide.protocol.SelectionRange
 import com.intellij.openapi.application.ApplicationManager
 import com.intellij.openapi.editor.Document
+import com.intellij.openapi.editor.Editor
 import com.intellij.openapi.fileEditor.FileDocumentManager
 import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.util.Ref
 import com.intellij.openapi.util.TextRange
+import com.intellij.openapi.vfs.VirtualFile
 
 object PiXIdeSnapshotBuilder {
     data class OffsetSelection(
@@ -21,11 +23,17 @@ object PiXIdeSnapshotBuilder {
         val endOffset: Int,
     )
 
-    fun activeSnapshot(project: Project): EditorSelectionSnapshot? {
+    fun activeSnapshot(project: Project): EditorSelectionSnapshot? = snapshot(project)
+
+    fun snapshot(
+        project: Project,
+        preferredEditor: Editor? = null,
+        contextFile: VirtualFile? = null,
+    ): EditorSelectionSnapshot? {
         val application = ApplicationManager.getApplication()
-        if (application.isDispatchThread) return activeSnapshotOnEdt(project)
+        if (application.isDispatchThread) return snapshotOnEdt(project, preferredEditor, contextFile)
         val ref = Ref<EditorSelectionSnapshot?>()
-        application.invokeAndWait { ref.set(activeSnapshotOnEdt(project)) }
+        application.invokeAndWait { ref.set(snapshotOnEdt(project, preferredEditor, contextFile)) }
         return ref.get()
     }
 
@@ -53,11 +61,17 @@ object PiXIdeSnapshotBuilder {
         return Position(line = line, character = character)
     }
 
-    private fun activeSnapshotOnEdt(project: Project): EditorSelectionSnapshot? {
-        val editor = FileEditorManager.getInstance(project).selectedTextEditor ?: return null
+    private fun snapshotOnEdt(
+        project: Project,
+        preferredEditor: Editor?,
+        contextFile: VirtualFile?,
+    ): EditorSelectionSnapshot? {
+        val editor = preferredEditor ?: FileEditorManager.getInstance(project).selectedTextEditor ?: return null
         val document = editor.document
-        val virtualFile = FileDocumentManager.getInstance().getFile(document) ?: return null
-        if (!virtualFile.isInLocalFileSystem) return null
+        val virtualFile = FileDocumentManager.getInstance().getFile(document)
+            ?.takeIf { it.isInLocalFileSystem }
+            ?: contextFile?.takeIf { it.isInLocalFileSystem }
+            ?: return null
 
         val filePath = virtualFile.path
         val workspaceFolder = PiXIdeWorkspace.bestWorkspaceFolder(project, filePath)

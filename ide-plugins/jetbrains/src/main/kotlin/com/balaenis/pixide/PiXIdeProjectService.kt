@@ -80,8 +80,10 @@ class PiXIdeProjectService(
             .onFailure { LOG.warn("Failed to refresh Pi x IDE lock file", it) }
     }
 
-    fun attachCurrentSelection(): AttachResult {
-        val snapshot = currentSnapshot() ?: return AttachResult.NoActiveFile
+    fun attachCurrentSelection(): AttachResult = attachSelection(currentSnapshot())
+
+    fun attachSelection(snapshot: EditorSelectionSnapshot?): AttachResult {
+        snapshot ?: return AttachResult.NoActiveFile
         latestSnapshot = snapshot
         val rangeText = formatRangeMention(snapshot)
         val sent = server?.sendAtMentioned(snapshot, rangeText) == true

@@ -3,9 +3,13 @@
 package com.balaenis.pixide.actions
 
 import com.balaenis.pixide.PiXIdeProjectService
+import com.balaenis.pixide.editor.PiXIdeSnapshotBuilder
+import com.balaenis.pixide.protocol.EditorSelectionSnapshot
 import com.intellij.notification.NotificationGroupManager
 import com.intellij.notification.NotificationType
 import com.intellij.openapi.actionSystem.AnActionEvent
+import com.intellij.openapi.actionSystem.CommonDataKeys
+import com.intellij.openapi.fileEditor.OpenFileDescriptor
 import com.intellij.openapi.project.DumbAwareAction
 import com.intellij.openapi.project.Project
 
@@ -16,14 +20,30 @@ class PiXIdeAttachSelectionAction : DumbAwareAction() {
 
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
-        attach(project)
+        val contextFile = event.getData(CommonDataKeys.VIRTUAL_FILE)
+            ?.takeIf { it.isInLocalFileSystem }
+            ?: (event.getData(CommonDataKeys.NAVIGATABLE) as? OpenFileDescriptor)?.file
+        val snapshot = PiXIdeSnapshotBuilder.snapshot(
+            project = project,
+            preferredEditor = event.getData(CommonDataKeys.EDITOR),
+            contextFile = contextFile,
+        )
+        attach(project, snapshot)
     }
 
     companion object {
         private const val NOTIFICATION_GROUP = "Pi x IDE Notifications"
 
         fun attach(project: Project) {
-            when (val result = PiXIdeProjectService.getInstance(project).attachCurrentSelection()) {
+            showResult(project, PiXIdeProjectService.getInstance(project).attachCurrentSelection())
+        }
+
+        private fun attach(project: Project, snapshot: EditorSelectionSnapshot?) {
+            showResult(project, PiXIdeProjectService.getInstance(project).attachSelection(snapshot))
+        }
+
+        private fun showResult(project: Project, result: PiXIdeProjectService.AttachResult) {
+            when (result) {
                 is PiXIdeProjectService.AttachResult.Attached -> {
                     notify(project, "Pi x IDE attached ${result.rangeText}", NotificationType.INFORMATION)
                 }

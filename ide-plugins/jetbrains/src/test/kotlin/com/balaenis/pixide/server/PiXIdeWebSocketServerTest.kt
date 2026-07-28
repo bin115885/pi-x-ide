@@ -4,6 +4,7 @@ package com.balaenis.pixide.server
 
 import com.balaenis.pixide.EXT_CONFIG_NAME
 import com.balaenis.pixide.protocol.AUTH_HEADER
+import com.balaenis.pixide.protocol.EditorSelectionSnapshot
 import com.google.gson.JsonParser
 import java.net.URI
 import java.net.http.HttpClient
@@ -54,6 +55,44 @@ class PiXIdeWebSocketServerTest {
     }
 
     @Test
+    fun sendsAttachOnlyToRequestedTerminalSession() {
+        val server = PiXIdeWebSocketServer(
+            authToken = "token",
+            pluginVersion = "1.19.3",
+            getInitialSelection = { null },
+        )
+        try {
+            val port = server.start()
+            val firstListener = CollectingListener()
+            val secondListener = CollectingListener()
+            val first = connect(port, "token", firstListener)
+            val second = connect(port, "token", secondListener)
+            first.sendText(initializeRequest("first"), true).get(5, TimeUnit.SECONDS)
+            second.sendText(initializeRequest("second"), true).get(5, TimeUnit.SECONDS)
+            repeat(2) {
+                assertNotNull(firstListener.nextMessage())
+                assertNotNull(secondListener.nextMessage())
+            }
+
+            val snapshot = EditorSelectionSnapshot(
+                filePath = "/repo/src/main.ts",
+                workspaceFolder = "/repo",
+                ranges = emptyList(),
+            )
+            assertTrue(server.sendAtMentioned(snapshot, "@src/main.ts", "second"))
+            assertEquals(null, firstListener.messages.poll(300, TimeUnit.MILLISECONDS))
+            val received = JsonParser.parseString(assertNotNull(secondListener.nextMessage())).asJsonObject
+            assertEquals("at_mentioned", received.get("method").asString)
+            assertEquals(false, server.sendAtMentioned(snapshot, "@src/main.ts", "missing"))
+
+            first.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(5, TimeUnit.SECONDS)
+            second.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(5, TimeUnit.SECONDS)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
     fun unauthorizedClientReceivesNoInitializeResponse() {
         val server = PiXIdeWebSocketServer(
             authToken = "token",
@@ -81,9 +120,10 @@ class PiXIdeWebSocketServerTest {
             .buildAsync(URI.create("ws://127.0.0.1:$port"), listener)
             .get(5, TimeUnit.SECONDS)
 
-    private fun initializeRequest(): String =
-        """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"client":{"name":"$EXT_CONFIG_NAME","version":"test"},"cwd":"/repo"}}"""
-
+    private fun initializeRequest(terminalSessionId: String? = null): String {
+        val terminalSession = terminalSessionId?.let { ",\"terminalSessionId\":\"$it\"" }.orEmpty()
+        return """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":1,"client":{"name":"$EXT_CONFIG_NAME","version":"test"},"cwd":"/repo"$terminalSession}}"""
+    }
     class CollectingListener : WebSocket.Listener {
         val messages = LinkedBlockingQueue<String>()
 

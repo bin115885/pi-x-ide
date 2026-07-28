@@ -19,11 +19,7 @@ Pi × IDE 通过 Marketplace 插件集成 IntelliJ IDEA、PyCharm、WebStorm 等
 ## 验证连接
 
 1. 在 JetBrains IDE 中打开项目。
-2. 在该项目中打开终端并启动 Pi：
-
-   ```bash
-   pi
-   ```
+2. 通过 Find Action 或工具栏运行 **Pi x IDE: Open Pi Terminal**。插件会打开专用 Pi 终端，并将该标签页与 Pi 会话关联。
 
 3. 打开源文件并选中文本。Pi widget 应显示：
 
@@ -39,11 +35,13 @@ Pi × IDE 通过 Marketplace 插件集成 IntelliJ IDEA、PyCharm、WebStorm 等
 
 - 按 `Ctrl+Alt+K`（Linux/Windows）或 `Cmd+Alt+K`（macOS）。
 - 在 Find Action 对话框（`Ctrl+Shift+A` / `Cmd+Shift+A`）中运行 **Pi x IDE: Attach Selection**。
+- 右键选中的代码，选择 **Pi x IDE: Attach Selection**。
 
 Pi 把 `@relative/path#Lx-Ly` 插入输入框。提交消息即可把选中文本作为 LLM 上下文发送。
 
 ## 注意
 
-- JetBrains 对非空选区和"有活跃文件但无选中文本"两种情况都会发送选区通知。
+- JetBrains 对非空选区和“有活跃文件但无选中文本”两种情况都会发送选区通知。
+- 存在多个由插件创建的 Pi 终端时，手动发送只会到达 Terminal 工具窗口中最近选中的 Pi 标签页；没有选中插件 Pi 标签页时会提示且不会发送。
 - 诊断 Quick Fix 和自动安装是 VS Code 系列功能，JetBrains 不支持。见 [功能对比](../reference/feature-parity.md)。
 - 本地开发和 sandbox 测试见 [CONTRIBUTING.zh-CN.md](../../../CONTRIBUTING.zh-CN.md)。

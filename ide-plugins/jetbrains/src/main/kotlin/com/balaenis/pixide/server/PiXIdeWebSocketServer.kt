@@ -1,5 +1,5 @@
 // ABOUTME: Hosts the local authenticated WebSocket server for JetBrains-to-Pi communication.
-// ABOUTME: Handles JSON-RPC initialize requests and broadcasts selection and attach notifications.
+// ABOUTME: 处理 JSON-RPC 初始化、选区广播以及按终端会话定向发送。
 package com.balaenis.pixide.server
 
 import com.balaenis.pixide.protocol.AUTH_HEADER
@@ -14,6 +14,7 @@ import com.balaenis.pixide.protocol.SelectionClearedParams
 import com.balaenis.pixide.protocol.ServerInfo
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CopyOnWriteArraySet
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
@@ -34,6 +35,7 @@ class PiXIdeWebSocketServer(
     private val nowMillis: () -> Long = { System.currentTimeMillis() },
 ) {
     private val sockets = CopyOnWriteArraySet<WebSocket>()
+    private val socketsByTerminalSession = ConcurrentHashMap<String, WebSocket>()
     private val started = AtomicBoolean(false)
     private var delegate: JetBrainsWebSocketServer? = null
     @Volatile private var startError: Exception? = null
@@ -72,16 +74,19 @@ class PiXIdeWebSocketServer(
         for (socket in sockets.filter { it.isOpen }) sendText(socket, text)
     }
 
-    fun sendAtMentioned(snapshot: EditorSelectionSnapshot, rangeText: String): Boolean {
-        val openSockets = sockets.filter { it.isOpen }
-        if (openSockets.isEmpty()) return false
+    fun sendAtMentioned(
+        snapshot: EditorSelectionSnapshot,
+        rangeText: String,
+        terminalSessionId: String,
+    ): Boolean {
+        val socket = socketsByTerminalSession[terminalSessionId]
+            ?.takeIf { it.isOpen }
+            ?: return false
         val text = PiXIdeJson.notification(
             "at_mentioned",
             AtMentionedParams(snapshot.copy(receivedAt = snapshot.receivedAt ?: nowMillis()), rangeText),
         )
-        var sent = false
-        for (socket in openSockets) sent = sendText(socket, text) || sent
-        return sent
+        return sendText(socket, text)
     }
 
     fun stop() {
@@ -90,6 +95,7 @@ class PiXIdeWebSocketServer(
         started.set(false)
         for (socket in sockets) runCatching { socket.close() }
         sockets.clear()
+        socketsByTerminalSession.clear()
         if (server != null) runCatching { server.stop(1000) }
         onClientCountChanged()
     }
@@ -97,6 +103,12 @@ class PiXIdeWebSocketServer(
     private fun handleMessage(socket: WebSocket, text: String) {
         val request = PiXIdeJson.parseRequest(text) ?: return
         if (request.method != "initialize") return
+        request.params
+            ?.get("terminalSessionId")
+            ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
+            ?.asString
+            ?.takeIf { it.isNotBlank() }
+            ?.let { socketsByTerminalSession[it] = socket }
         val result = InitializeResult(
             protocolVersion = PROTOCOL_VERSION,
             server = ServerInfo(
@@ -116,10 +128,15 @@ class PiXIdeWebSocketServer(
         socket.send(text)
         true
     } catch (_: RuntimeException) {
-        sockets.remove(socket)
+        removeSocket(socket)
         runCatching { socket.close() }
         onClientCountChanged()
         false
+    }
+
+    private fun removeSocket(socket: WebSocket) {
+        sockets.remove(socket)
+        socketsByTerminalSession.entries.removeIf { it.value == socket }
     }
 
     private inner class JetBrainsWebSocketServer(
@@ -149,7 +166,7 @@ class PiXIdeWebSocketServer(
         }
 
         override fun onClose(conn: WebSocket, code: Int, reason: String, remote: Boolean) {
-            sockets.remove(conn)
+            removeSocket(conn)
             onClientCountChanged()
         }
 
@@ -162,7 +179,7 @@ class PiXIdeWebSocketServer(
         }
 
         override fun onError(conn: WebSocket?, ex: Exception) {
-            if (conn != null) sockets.remove(conn)
+            if (conn != null) removeSocket(conn)
             if (!started.get()) startError = ex
             startLatch.countDown()
             onClientCountChanged()

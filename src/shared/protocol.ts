@@ -5,6 +5,7 @@ import { EXT_CONFIG_NAME } from "./config.js";
 export const PROTOCOL_VERSION = 1;
 export const AUTH_HEADER = "x-pi-x-ide-authorization";
 export const LOCK_FILE_EXTENSION = ".lock";
+export const TERMINAL_SESSION_ENV = "PI_X_IDE_TERMINAL_SESSION_ID";
 
 export type IdeSource = "vscode" | "zed" | "nvim" | "jetbrains" | "unknown";
 export type Transport = "ws";
@@ -59,6 +60,7 @@ export interface InitializeParams {
     version: string;
   };
   cwd: string;
+  terminalSessionId?: string;
 }
 
 export interface InitializeResult {

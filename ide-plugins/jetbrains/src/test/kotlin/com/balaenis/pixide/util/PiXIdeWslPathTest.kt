@@ -47,6 +47,14 @@ class PiXIdeWslPathTest {
         )
         assertEquals(listOf("wsl.exe", "-d", "Ubuntu", "--cd", "/home/julian/repo", "--exec", "/bin/sh", "-lc"), command.take(8))
         assertTrue(command.last().contains("exec \"${'$'}shell\" -lic pi"))
+        val targetedCommand = assertNotNull(
+            terminalCommandForProject(
+                "\\\\wsl.localhost\\Ubuntu\\home\\julian\\repo",
+                terminalSessionId = "terminal-123",
+                osName = "Windows 11",
+            ),
+        )
+        assertTrue(targetedCommand.last().startsWith("export PI_X_IDE_TERMINAL_SESSION_ID='terminal-123'"))
         assertEquals(
             "C:\\Users\\julian",
             terminalWorkingDirectoryForProject(

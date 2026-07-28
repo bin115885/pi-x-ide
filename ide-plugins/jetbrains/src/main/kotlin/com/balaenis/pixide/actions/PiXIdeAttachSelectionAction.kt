@@ -45,11 +45,18 @@ class PiXIdeAttachSelectionAction : DumbAwareAction() {
                 is PiXIdeProjectService.AttachResult.Attached -> {
                     notify(project, "Pi x IDE attached ${result.rangeText}", NotificationType.INFORMATION)
                 }
-                is PiXIdeProjectService.AttachResult.NoClients -> {
-                    notify(project, "Pi x IDE: no Pi clients connected. Reference: ${result.rangeText}", NotificationType.WARNING)
+                is PiXIdeProjectService.AttachResult.TargetNotConnected -> {
+                    notify(
+                        project,
+                        "Pi x IDE: the selected Pi terminal is not connected. Reference: ${result.rangeText}",
+                        NotificationType.WARNING,
+                    )
                 }
                 PiXIdeProjectService.AttachResult.NoActiveFile -> {
                     notify(project, "Pi x IDE: no active file to attach.", NotificationType.WARNING)
+                }
+                PiXIdeProjectService.AttachResult.NoActivePiTerminal -> {
+                    notify(project, "Pi x IDE: select a Pi terminal opened by the plugin first.", NotificationType.WARNING)
                 }
             }
         }

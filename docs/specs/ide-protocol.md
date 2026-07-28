@@ -71,10 +71,13 @@ Pi sends:
   "params": {
     "protocolVersion": 1,
     "client": { "name": "pi-x-ide", "version": "0.1.0" },
-    "cwd": "/home/user/project"
+    "cwd": "/home/user/project",
+    "terminalSessionId": "optional-ide-terminal-session-id"
   }
 }
 ```
+
+`terminalSessionId` is optional. JetBrains terminals created by Pi x IDE use it to route manual attach notifications only to the currently selected Pi terminal.
 
 IDE responds:
 

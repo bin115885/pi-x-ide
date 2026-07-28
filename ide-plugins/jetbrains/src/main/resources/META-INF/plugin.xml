@@ -25,6 +25,7 @@
             icon="/icons/pi-x-ide.svg">
       <keyboard-shortcut first-keystroke="ctrl alt K" keymap="$default" />
       <add-to-group group-id="ToolsMenu" anchor="last" />
+      <add-to-group group-id="EditorPopupMenu" anchor="last" />
     </action>
     <action id="PiXIde.AttachTabPath"
             class="com.balaenis.pixide.actions.PiXIdeAttachPathAction"

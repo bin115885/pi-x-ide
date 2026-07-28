@@ -8,6 +8,7 @@ const val IDE_SOURCE = "jetbrains"
 const val TRANSPORT = "ws"
 const val LOCK_FILE_EXTENSION = ".lock"
 const val SERVER_NAME = "Pi x IDE JetBrains"
+const val TERMINAL_SESSION_ENV = "PI_X_IDE_TERMINAL_SESSION_ID"
 
 data class Position(
     val line: Int,

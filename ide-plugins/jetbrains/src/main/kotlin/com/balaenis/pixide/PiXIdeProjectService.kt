@@ -22,6 +22,7 @@ import com.intellij.openapi.wm.WindowManager
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTab
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
 import java.util.Properties
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
 class PiXIdeProjectService(
@@ -38,8 +39,7 @@ class PiXIdeProjectService(
     @Volatile
     private var status: ServiceStatus = ServiceStatus.Idle
 
-    @Volatile
-    private var piTerminalTab: TerminalToolWindowTab? = null
+    private val piTerminals = ConcurrentHashMap<TerminalToolWindowTab, String>()
 
     fun start() {
         if (!started.compareAndSet(false, true)) return
@@ -92,12 +92,13 @@ class PiXIdeProjectService(
 
     fun attachSelection(snapshot: EditorSelectionSnapshot?): AttachResult {
         snapshot ?: return AttachResult.NoActiveFile
+        val terminal = activePiTerminal() ?: return AttachResult.NoActivePiTerminal
         latestSnapshot = snapshot
         val rangeText = formatRangeMention(snapshot)
-        val sent = server?.sendAtMentioned(snapshot, rangeText) == true
-        if (sent) focusPiTerminal()
+        val sent = server?.sendAtMentioned(snapshot, rangeText, terminal.sessionId) == true
+        if (sent) focusPiTerminal(terminal.tab)
         updateStatusBar()
-        return if (sent) AttachResult.Attached(rangeText) else AttachResult.NoClients(rangeText)
+        return if (sent) AttachResult.Attached(rangeText) else AttachResult.TargetNotConnected(rangeText)
     }
 
     fun clientCount(): Int = server?.clientCount ?: 0
@@ -121,8 +122,8 @@ class PiXIdeProjectService(
 
     fun latestSnapshot(): EditorSelectionSnapshot? = latestSnapshot
 
-    fun registerPiTerminal(tab: TerminalToolWindowTab) {
-        piTerminalTab = tab
+    fun registerPiTerminal(tab: TerminalToolWindowTab, terminalSessionId: String) {
+        piTerminals[tab] = terminalSessionId
     }
 
     fun formatRangeMention(snapshot: EditorSelectionSnapshot): String {
@@ -140,7 +141,7 @@ class PiXIdeProjectService(
         runCatching { lockFileManager.cleanup() }
         runCatching { server?.stop() }
         server = null
-        piTerminalTab = null
+        piTerminals.clear()
         latestSnapshot = null
         status = ServiceStatus.Idle
         started.set(false)
@@ -152,13 +153,25 @@ class PiXIdeProjectService(
             .onFailure { LOG.warn("Failed to build Pi x IDE selection snapshot", it) }
             .getOrNull()
 
-    private fun focusPiTerminal() {
-        val tab = piTerminalTab ?: return
+    private fun activePiTerminal(): PiTerminal? {
+        val tabs = TerminalToolWindowTabsManager.getInstance(project).tabs
+        piTerminals.keys.removeIf { it !in tabs }
+        val selectedContent = ToolWindowManager.getInstance(project)
+            .getToolWindow("Terminal")
+            ?.contentManager
+            ?.selectedContent
+            ?: return null
+        val tab = tabs.firstOrNull { it.content === selectedContent } ?: return null
+        val sessionId = piTerminals[tab] ?: return null
+        return PiTerminal(tab, sessionId)
+    }
+
+    private fun focusPiTerminal(tab: TerminalToolWindowTab) {
         ApplicationManager.getApplication().invokeLater(
             {
                 if (project.isDisposed) return@invokeLater
                 if (tab !in TerminalToolWindowTabsManager.getInstance(project).tabs) {
-                    piTerminalTab = null
+                    piTerminals.remove(tab)
                     return@invokeLater
                 }
                 val toolWindow = ToolWindowManager.getInstance(project)
@@ -201,9 +214,15 @@ class PiXIdeProjectService(
 
     sealed class AttachResult {
         data class Attached(val rangeText: String) : AttachResult()
-        data class NoClients(val rangeText: String) : AttachResult()
+        data class TargetNotConnected(val rangeText: String) : AttachResult()
         object NoActiveFile : AttachResult()
+        object NoActivePiTerminal : AttachResult()
     }
+
+    private data class PiTerminal(
+        val tab: TerminalToolWindowTab,
+        val sessionId: String,
+    )
 
     private sealed class ServiceStatus {
         object Idle : ServiceStatus()

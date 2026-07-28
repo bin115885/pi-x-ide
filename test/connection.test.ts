@@ -25,6 +25,7 @@ import {
   type DiagnosticFixRequestedParams,
   type EditorSelectionSnapshot,
   type LockFileCandidate,
+  TERMINAL_SESSION_ENV,
 } from "../src/shared/protocol.js";
 import { decodeRawData } from "../src/shared/ws.js";
 import { formatExtensionError, setExtensionErrorReporter } from "../src/shared/errors.js";
@@ -242,11 +243,15 @@ void test("normalizes selection notifications before callbacks", async () => {
   const wss = new WebSocketServer({ host: "127.0.0.1", port: 0 });
   await new Promise<void>((resolve) => wss.once("listening", resolve));
   let connection: IdeConnection | undefined;
-
+  let initializedTerminalSessionId: string | undefined;
   try {
     wss.on("connection", (socket) => {
       socket.on("message", (raw) => {
-        const request = JSON.parse(decodeRawData(raw)) as { id: number | string };
+        const request = JSON.parse(decodeRawData(raw)) as {
+          id: number | string;
+          params?: { terminalSessionId?: string };
+        };
+        initializedTerminalSessionId = request.params?.terminalSessionId;
         socket.send(
           JSON.stringify({
             jsonrpc: "2.0",
@@ -278,11 +283,12 @@ void test("normalizes selection notifications before callbacks", async () => {
       createCandidate({ ide: "jetbrains", port: address.port }),
       "/home/julian/repo",
       { onAtMentioned: mentionResolve, onSelectionChanged: selectionResolve },
-      { env: { WSL_DISTRO_NAME: "Ubuntu" } },
+      { env: { WSL_DISTRO_NAME: "Ubuntu", [TERMINAL_SESSION_ENV]: "terminal-123" } },
     );
 
     await connection.connect();
     const snapshot = await withTimeout(selection, 500, "timed out waiting for selection notification");
+    assert.equal(initializedTerminalSessionId, "terminal-123");
     assert.equal(snapshot.filePath, "/home/julian/repo/src/a.ts");
     assert.equal(snapshot.workspaceFolder, "/home/julian/repo");
     const atMentioned = await withTimeout(mention, 500, "timed out waiting for at mentioned notification");

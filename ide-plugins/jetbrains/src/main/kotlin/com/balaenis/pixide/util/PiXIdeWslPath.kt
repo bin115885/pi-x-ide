@@ -18,6 +18,16 @@ case "${'$'}(basename "${'$'}shell")" in
 esac
 """
 
+private fun runPiInLoginShell(terminalSessionId: String?): String = buildString {
+    if (terminalSessionId != null) {
+        append("export PI_X_IDE_TERMINAL_SESSION_ID=")
+        append("'")
+        append(terminalSessionId.replace("'", "'\"'\"'"))
+        append("'\n")
+    }
+    append(RUN_PI_IN_LOGIN_SHELL.trim())
+}
+
 fun parseWslUncPath(path: String?): PiXIdeWslPath? {
     if (path.isNullOrBlank()) return null
     val normalized = path.replace('\\', '/')
@@ -35,6 +45,7 @@ fun parseWslUncPath(path: String?): PiXIdeWslPath? {
 
 fun terminalCommandForProject(
     basePath: String?,
+    terminalSessionId: String? = null,
     osName: String = System.getProperty("os.name").orEmpty(),
     shellPath: String? = System.getenv("SHELL"),
 ): List<String>? {
@@ -49,7 +60,7 @@ fun terminalCommandForProject(
             "--exec",
             "/bin/sh",
             "-lc",
-            RUN_PI_IN_LOGIN_SHELL.trim(),
+            runPiInLoginShell(terminalSessionId),
         )
         osName.startsWith("Windows", ignoreCase = true) -> null
         else -> loginShellCommand(shellPath)

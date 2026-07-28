@@ -15,6 +15,7 @@ import {
   type LockFileCandidate,
   type SelectionChangedParams,
   type SelectionClearedParams,
+  TERMINAL_SESSION_ENV,
 } from "../shared/protocol.js";
 import {
   isAtMentionedParams,
@@ -172,6 +173,7 @@ export class IdeConnection {
   }
 
   private sendInitialize(): void {
+    const env = this.options.env ?? process.env;
     this.socket?.send(
       JSON.stringify({
         jsonrpc: "2.0",
@@ -181,6 +183,7 @@ export class IdeConnection {
           protocolVersion: PROTOCOL_VERSION,
           client: { name: EXT_CONFIG_NAME, version: "0.1.0" },
           cwd: this.cwd,
+          terminalSessionId: env[TERMINAL_SESSION_ENV],
         },
       }),
     );

@@ -67,7 +67,14 @@ async function main() {
 
 async function buildPackage() {
   await rm(join(REPO_ROOT, "dist"), { recursive: true, force: true });
-  await runNodeScript("node_modules/typescript/bin/tsc", ["-p", "tsconfig.publish.json"]);
+  // Pi installs git packages with `npm install --omit=dev`, so TypeScript may be absent.
+  // esbuild alone is enough for the package entry Pi loads.
+  try {
+    await access(join(REPO_ROOT, "node_modules/typescript/bin/tsc"));
+    await runNodeScript("node_modules/typescript/bin/tsc", ["-p", "tsconfig.publish.json"]);
+  } catch {
+    // fall through to esbuild-only package build
+  }
   await main();
 }
 

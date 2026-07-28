@@ -82,7 +82,8 @@ class PiXIdeEditorTracker(
                 preferredEditor = editor,
                 contextFile = PiXIdeSnapshotBuilder.contextFile(dataContext, editor),
             )
-            service.publishSelection(snapshot)
+            // 全局编辑器事件也包含内嵌终端，不能让终端光标事件清除最后一次源码选区。
+            if (snapshot != null) service.publishSelection(snapshot)
         }
     }
 }

@@ -1,5 +1,5 @@
 // ABOUTME: Orchestrates JetBrains project lifecycle for pi-x-ide selection integration.
-// ABOUTME: Owns the WebSocket server, lock file, editor tracking, attach handling, and status refresh.
+// ABOUTME: Owns WebSocket, lock-file, editor tracking, attach handling, status, and embedded Pi terminal focus.
 package com.balaenis.pixide
 
 import com.balaenis.pixide.editor.PiXIdeEditorTracker
@@ -16,7 +16,11 @@ import com.intellij.openapi.application.ModalityState
 import com.intellij.openapi.components.service
 import com.intellij.openapi.diagnostic.Logger
 import com.intellij.openapi.project.Project
+import com.intellij.openapi.wm.IdeFocusManager
+import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.WindowManager
+import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTab
+import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
 import java.util.Properties
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -33,6 +37,9 @@ class PiXIdeProjectService(
 
     @Volatile
     private var status: ServiceStatus = ServiceStatus.Idle
+
+    @Volatile
+    private var piTerminalTab: TerminalToolWindowTab? = null
 
     fun start() {
         if (!started.compareAndSet(false, true)) return
@@ -88,6 +95,7 @@ class PiXIdeProjectService(
         latestSnapshot = snapshot
         val rangeText = formatRangeMention(snapshot)
         val sent = server?.sendAtMentioned(snapshot, rangeText) == true
+        if (sent) focusPiTerminal()
         updateStatusBar()
         return if (sent) AttachResult.Attached(rangeText) else AttachResult.NoClients(rangeText)
     }
@@ -113,6 +121,10 @@ class PiXIdeProjectService(
 
     fun latestSnapshot(): EditorSelectionSnapshot? = latestSnapshot
 
+    fun registerPiTerminal(tab: TerminalToolWindowTab) {
+        piTerminalTab = tab
+    }
+
     fun formatRangeMention(snapshot: EditorSelectionSnapshot): String {
         val relative = PiXIdeWorkspace.relativePath(snapshot.filePath, snapshot.workspaceFolder)
         val first = snapshot.ranges.firstOrNull() ?: return "@$relative"
@@ -128,6 +140,7 @@ class PiXIdeProjectService(
         runCatching { lockFileManager.cleanup() }
         runCatching { server?.stop() }
         server = null
+        piTerminalTab = null
         latestSnapshot = null
         status = ServiceStatus.Idle
         started.set(false)
@@ -138,6 +151,31 @@ class PiXIdeProjectService(
         runCatching { PiXIdeSnapshotBuilder.activeSnapshot(project) }
             .onFailure { LOG.warn("Failed to build Pi x IDE selection snapshot", it) }
             .getOrNull()
+
+    private fun focusPiTerminal() {
+        val tab = piTerminalTab ?: return
+        ApplicationManager.getApplication().invokeLater(
+            {
+                if (project.isDisposed) return@invokeLater
+                if (tab !in TerminalToolWindowTabsManager.getInstance(project).tabs) {
+                    piTerminalTab = null
+                    return@invokeLater
+                }
+                val toolWindow = ToolWindowManager.getInstance(project)
+                    .getToolWindow("Terminal")
+                    ?: return@invokeLater
+                toolWindow.activate(
+                    {
+                        toolWindow.contentManager.setSelectedContent(tab.content, true)
+                        IdeFocusManager.getInstance(project)
+                            .requestFocusInProject(tab.view.preferredFocusableComponent, project)
+                    },
+                    true,
+                )
+            },
+            ModalityState.any(),
+        )
+    }
 
     private fun updateStatusBar() {
         val application = ApplicationManager.getApplication()

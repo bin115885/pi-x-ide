@@ -36,7 +36,7 @@ class PiXIdeAttachSelectionAction : DumbAwareAction() {
             showResult(project, PiXIdeProjectService.getInstance(project).attachCurrentSelection())
         }
 
-        private fun attach(project: Project, snapshot: EditorSelectionSnapshot?) {
+        fun attach(project: Project, snapshot: EditorSelectionSnapshot?) {
             showResult(project, PiXIdeProjectService.getInstance(project).attachSelection(snapshot))
         }
 

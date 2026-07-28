@@ -1,6 +1,7 @@
 // ABOUTME: Bundles the Pi extension entry with esbuild code-splitting for fast startup.
 // ABOUTME: Bans Pi host-package runtime external edges so jiti aliases cannot be bypassed.
 import * as esbuild from "esbuild";
+import { spawn } from "node:child_process";
 import { access, mkdir, readdir, rm, stat } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -62,6 +63,30 @@ async function main() {
   validateMetafile(result.metafile);
   await validateOutputSizes();
   console.log("Pi entry bundle complete:", relative(REPO_ROOT, ENTRY_OUT));
+}
+
+async function buildPackage() {
+  await rm(join(REPO_ROOT, "dist"), { recursive: true, force: true });
+  await runNodeScript("node_modules/typescript/bin/tsc", ["-p", "tsconfig.publish.json"]);
+  await main();
+}
+
+function runNodeScript(script, args) {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(process.execPath, [join(REPO_ROOT, script), ...args], {
+      cwd: REPO_ROOT,
+      stdio: "inherit",
+      env: process.env,
+    });
+    child.on("error", rejectPromise);
+    child.on("close", (code) => {
+      if (code === 0) {
+        resolvePromise();
+        return;
+      }
+      rejectPromise(new Error(`${script} failed with exit code ${code ?? "unknown"}`));
+    });
+  });
 }
 
 async function cleanPreviousOutputs() {
@@ -235,7 +260,8 @@ function isExecutedDirectly() {
 }
 
 if (isExecutedDirectly()) {
-  main().catch((error) => {
+  const command = process.argv[2] === "--package" ? buildPackage() : main();
+  command.catch((error) => {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);
   });

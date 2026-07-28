@@ -18,7 +18,9 @@
     "RELEASE.md"
   ],
   "scripts": {
-    "prepack": "rm -rf dist && bunx tsc -p tsconfig.publish.json && bun run scripts/build-pi-entry.mjs"
+    "build:package": "node scripts/build-pi-entry.mjs --package",
+    "prepare": "node scripts/build-pi-entry.mjs --package",
+    "prepack": "node scripts/build-pi-entry.mjs --package"
   },
   "keywords": [
     "pi-package",

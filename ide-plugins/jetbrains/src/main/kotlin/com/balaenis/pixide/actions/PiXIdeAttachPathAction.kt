@@ -8,17 +8,18 @@ import com.intellij.openapi.actionSystem.AnActionEvent
 import com.intellij.openapi.actionSystem.CommonDataKeys
 import com.intellij.openapi.actionSystem.PlatformCoreDataKeys
 import com.intellij.openapi.project.DumbAwareAction
+import com.intellij.openapi.project.ProjectLocator
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.PsiFileSystemItem
 
 class PiXIdeAttachPathAction : DumbAwareAction() {
-    override fun update(event: AnActionEvent) {
-        event.presentation.isEnabledAndVisible = event.project != null
-    }
-
     override fun actionPerformed(event: AnActionEvent) {
-        val project = event.project ?: return
-        selectedFiles(event).forEach { file ->
+        val files = selectedFiles(event)
+        val project = event.project
+            ?: files.firstNotNullOfOrNull { ProjectLocator.getInstance().guessProjectForFile(it) }
+            ?: return
+
+        files.forEach { file ->
             PiXIdeAttachSelectionAction.attach(
                 project,
                 EditorSelectionSnapshot(

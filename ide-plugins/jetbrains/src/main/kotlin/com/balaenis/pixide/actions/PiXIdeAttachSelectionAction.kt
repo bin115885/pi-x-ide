@@ -14,12 +14,15 @@ import com.intellij.openapi.project.Project
 
 class PiXIdeAttachSelectionAction : DumbAwareAction() {
     override fun update(event: AnActionEvent) {
-        event.presentation.isEnabled = event.project != null
+        val editor = event.getData(CommonDataKeys.EDITOR)
+        event.presentation.isEnabledAndVisible = event.project != null &&
+            (editor == null || PiXIdeSnapshotBuilder.isAttachableEditor(event.dataContext, editor))
     }
 
     override fun actionPerformed(event: AnActionEvent) {
         val project = event.project ?: return
         val editor = event.getData(CommonDataKeys.EDITOR)
+        if (editor != null && !PiXIdeSnapshotBuilder.isAttachableEditor(event.dataContext, editor)) return
         val contextFile = editor?.let { PiXIdeSnapshotBuilder.contextFile(event.dataContext, it) }
         val snapshot = PiXIdeSnapshotBuilder.snapshot(
             project = project,

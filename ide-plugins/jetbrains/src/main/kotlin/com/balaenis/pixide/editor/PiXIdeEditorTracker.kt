@@ -77,6 +77,10 @@ class PiXIdeEditorTracker(
                 return@schedule
             }
             val dataContext = DataManager.getInstance().getDataContext(editor.contentComponent)
+            if (!PiXIdeSnapshotBuilder.isAttachableEditor(dataContext, editor)) {
+                service.publishSelection(null)
+                return@schedule
+            }
             val snapshot = PiXIdeSnapshotBuilder.snapshot(
                 project = project,
                 preferredEditor = editor,

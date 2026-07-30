@@ -8,11 +8,13 @@
   ]]></description>
 
   <depends>com.intellij.modules.platform</depends>
+  <depends>com.intellij.modules.vcs</depends>
   <depends>org.jetbrains.plugins.terminal</depends>
 
   <extensions defaultExtensionNs="com.intellij">
     <projectService serviceImplementation="com.balaenis.pixide.PiXIdeProjectService" />
     <postStartupActivity implementation="com.balaenis.pixide.PiXIdeStartupActivity" />
+    <actionConfigurationCustomizer implementation="com.balaenis.pixide.actions.PiXIdeActionConfigurationCustomizer" />
     <statusBarWidgetFactory id="pi-x-ide" implementation="com.balaenis.pixide.ui.PiXIdeStatusBarWidgetFactory" />
     <notificationGroup id="Pi x IDE Notifications" displayType="BALLOON" />
   </extensions>
@@ -26,6 +28,8 @@
       <keyboard-shortcut first-keystroke="ctrl alt K" keymap="$default" />
       <add-to-group group-id="ToolsMenu" anchor="last" />
       <add-to-group group-id="EditorPopupMenu" anchor="last" />
+      <add-to-group group-id="Diff.EditorPopupMenu" anchor="last" />
+      <add-to-group group-id="Diff.EditorGutterPopupMenu" anchor="last" />
     </action>
     <action id="PiXIde.AttachTabPath"
             class="com.balaenis.pixide.actions.PiXIdeAttachPathAction"

@@ -43,6 +43,19 @@ object PiXIdeSnapshotBuilder {
         return ref.get()
     }
 
+    fun isAttachableEditor(dataContext: DataContext, editor: Editor): Boolean =
+        ApplicationManager.getApplication().runReadAction<Boolean> {
+            val contents = (dataContext.getData(DiffDataKeys.DIFF_REQUEST) as? ContentDiffRequest)?.contents
+                ?: return@runReadAction true
+            val editorIndex = contents.indexOfFirst {
+                (it as? DocumentContent)?.document === editor.document
+            }
+            isAttachableDiffSide(contents.size, editorIndex)
+        }
+
+    internal fun isAttachableDiffSide(contentCount: Int, editorIndex: Int): Boolean =
+        editorIndex == contentCount - 1
+
     fun contextFile(dataContext: DataContext, editor: Editor): VirtualFile? =
         ApplicationManager.getApplication().runReadAction<VirtualFile?> {
             val diffFile = (dataContext.getData(DiffDataKeys.DIFF_REQUEST) as? ContentDiffRequest)

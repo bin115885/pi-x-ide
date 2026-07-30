@@ -89,4 +89,11 @@ class PiXIdeSnapshotBuilderTest {
 
         assertEquals(listOf("bc", "ef"), snapshot.ranges.map { it.text })
     }
+
+    @Test
+    fun onlyRightDiffSideIsAttachable() {
+        assertEquals(false, PiXIdeSnapshotBuilder.isAttachableDiffSide(2, 0))
+        assertEquals(true, PiXIdeSnapshotBuilder.isAttachableDiffSide(2, 1))
+        assertEquals(false, PiXIdeSnapshotBuilder.isAttachableDiffSide(2, -1))
+    }
 }

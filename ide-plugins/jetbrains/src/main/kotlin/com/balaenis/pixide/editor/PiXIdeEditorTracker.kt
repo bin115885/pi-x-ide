@@ -71,6 +71,7 @@ class PiXIdeEditorTracker(
     }
 
     private fun publishSoon(editor: Editor? = null) {
+        if (editor != null && editor.project !== project) return
         debouncer.schedule {
             if (editor == null) {
                 service.publishCurrentSelection()

@@ -8,6 +8,7 @@ import com.balaenis.pixide.editor.PiXIdeWorkspace
 import com.balaenis.pixide.lock.PiXIdeLockFileManager
 import com.balaenis.pixide.protocol.EditorSelectionSnapshot
 import com.balaenis.pixide.protocol.SelectionClearedParams
+import com.balaenis.pixide.protocol.TERMINAL_SESSION_ENV
 import com.balaenis.pixide.server.PiXIdeWebSocketServer
 import com.balaenis.pixide.ui.PiXIdeStatusBarWidgetFactory
 import com.intellij.openapi.Disposable
@@ -21,9 +22,17 @@ import com.intellij.openapi.wm.ToolWindowManager
 import com.intellij.openapi.wm.WindowManager
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTab
 import com.intellij.terminal.frontend.toolwindow.TerminalToolWindowTabsManager
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import org.jetbrains.plugins.terminal.session.TerminalStartupOptions
 import java.util.Properties
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun terminalSessionId(startupOptions: Deferred<TerminalStartupOptions>): String? {
+    if (!startupOptions.isCompleted || startupOptions.isCancelled) return null
+    return startupOptions.getCompleted().envVariables[TERMINAL_SESSION_ENV]
+}
 
 class PiXIdeProjectService(
     private val project: Project,
@@ -38,8 +47,6 @@ class PiXIdeProjectService(
 
     @Volatile
     private var status: ServiceStatus = ServiceStatus.Idle
-
-    private val piTerminals = ConcurrentHashMap<TerminalToolWindowTab, String>()
 
     fun start() {
         if (!started.compareAndSet(false, true)) return
@@ -122,10 +129,6 @@ class PiXIdeProjectService(
 
     fun latestSnapshot(): EditorSelectionSnapshot? = latestSnapshot
 
-    fun registerPiTerminal(tab: TerminalToolWindowTab, terminalSessionId: String) {
-        piTerminals[tab] = terminalSessionId
-    }
-
     fun formatRangeMention(snapshot: EditorSelectionSnapshot): String {
         val relative = PiXIdeWorkspace.relativePath(snapshot.filePath, snapshot.workspaceFolder)
         val first = snapshot.ranges.firstOrNull() ?: return "@$relative"
@@ -141,7 +144,6 @@ class PiXIdeProjectService(
         runCatching { lockFileManager.cleanup() }
         runCatching { server?.stop() }
         server = null
-        piTerminals.clear()
         latestSnapshot = null
         status = ServiceStatus.Idle
         started.set(false)
@@ -155,14 +157,13 @@ class PiXIdeProjectService(
 
     private fun activePiTerminal(): PiTerminal? {
         val tabs = TerminalToolWindowTabsManager.getInstance(project).tabs
-        piTerminals.keys.removeIf { it !in tabs }
         val selectedContent = ToolWindowManager.getInstance(project)
             .getToolWindow("Terminal")
             ?.contentManager
             ?.selectedContent
             ?: return null
         val tab = tabs.firstOrNull { it.content === selectedContent } ?: return null
-        val sessionId = piTerminals[tab] ?: return null
+        val sessionId = terminalSessionId(tab.view.startupOptionsDeferred) ?: return null
         return PiTerminal(tab, sessionId)
     }
 
@@ -170,10 +171,7 @@ class PiXIdeProjectService(
         ApplicationManager.getApplication().invokeLater(
             {
                 if (project.isDisposed) return@invokeLater
-                if (tab !in TerminalToolWindowTabsManager.getInstance(project).tabs) {
-                    piTerminals.remove(tab)
-                    return@invokeLater
-                }
+                if (tab !in TerminalToolWindowTabsManager.getInstance(project).tabs) return@invokeLater
                 val toolWindow = ToolWindowManager.getInstance(project)
                     .getToolWindow("Terminal")
                     ?: return@invokeLater

@@ -2,7 +2,6 @@
 // ABOUTME: Provides the IDE-side entry point for starting a Pi session from JetBrains.
 package com.balaenis.pixide.actions
 
-import com.balaenis.pixide.PiXIdeProjectService
 import com.balaenis.pixide.protocol.TERMINAL_SESSION_ENV
 import com.balaenis.pixide.util.terminalCommandForProject
 import com.balaenis.pixide.util.terminalWorkingDirectoryForProject
@@ -34,7 +33,6 @@ class PiXIdeOpenTerminalAction : DumbAwareAction() {
                     .requestFocus(true)
                 if (shellCommand != null) tabBuilder.shellCommand(shellCommand)
                 val tab = tabBuilder.createTab()
-                PiXIdeProjectService.getInstance(project).registerPiTerminal(tab, terminalSessionId)
                 if (shellCommand == null) {
                     tab.view.createSendTextBuilder().shouldExecute().send("pi")
                 }

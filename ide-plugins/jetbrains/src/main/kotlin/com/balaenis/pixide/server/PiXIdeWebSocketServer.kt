@@ -12,6 +12,7 @@ import com.balaenis.pixide.protocol.PROTOCOL_VERSION
 import com.balaenis.pixide.protocol.SERVER_NAME
 import com.balaenis.pixide.protocol.SelectionClearedParams
 import com.balaenis.pixide.protocol.ServerInfo
+import com.intellij.openapi.diagnostic.Logger
 import java.net.InetSocketAddress
 import java.nio.ByteBuffer
 import java.util.concurrent.ConcurrentHashMap
@@ -34,8 +35,9 @@ class PiXIdeWebSocketServer(
     private val onClientCountChanged: () -> Unit = {},
     private val nowMillis: () -> Long = { System.currentTimeMillis() },
 ) {
+    private val logger = Logger.getInstance(PiXIdeWebSocketServer::class.java)
     private val sockets = CopyOnWriteArraySet<WebSocket>()
-    private val socketsByTerminalSession = ConcurrentHashMap<String, WebSocket>()
+    private val socketsByTerminalSession = ConcurrentHashMap<String, CopyOnWriteArraySet<WebSocket>>()
     private val started = AtomicBoolean(false)
     private var delegate: JetBrainsWebSocketServer? = null
     @Volatile private var startError: Exception? = null
@@ -80,13 +82,26 @@ class PiXIdeWebSocketServer(
         terminalSessionId: String,
     ): Boolean {
         val socket = socketsByTerminalSession[terminalSessionId]
-            ?.takeIf { it.isOpen }
-            ?: return false
+            ?.firstOrNull { it.isOpen }
+            ?: run {
+                logger.warn(
+                    "No open Pi WebSocket for terminal session $terminalSessionId; " +
+                        "registered=${socketsByTerminalSession.keys.sorted()} clients=$clientCount",
+                )
+                return false
+            }
         val text = PiXIdeJson.notification(
             "at_mentioned",
             AtMentionedParams(snapshot.copy(receivedAt = snapshot.receivedAt ?: nowMillis()), rangeText),
         )
-        return sendText(socket, text)
+        val sent = sendText(socket, text)
+        if (sent) {
+            logger.info(
+                "Sent at_mentioned to terminal session $terminalSessionId " +
+                    "sockets=${socketsByTerminalSession[terminalSessionId]?.size ?: 0}",
+            )
+        }
+        return sent
     }
 
     fun stop() {
@@ -108,7 +123,15 @@ class PiXIdeWebSocketServer(
             ?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }
             ?.asString
             ?.takeIf { it.isNotBlank() }
-            ?.let { socketsByTerminalSession[it] = socket }
+            ?.let { terminalSessionId ->
+                socketsByTerminalSession.compute(terminalSessionId) { _, terminalSockets ->
+                    (terminalSockets ?: CopyOnWriteArraySet()).apply { add(socket) }
+                }
+                logger.info(
+                    "Registered Pi terminal session $terminalSessionId " +
+                        "sockets=${socketsByTerminalSession[terminalSessionId]?.size ?: 0}",
+                )
+            }
         val result = InitializeResult(
             protocolVersion = PROTOCOL_VERSION,
             server = ServerInfo(
@@ -127,7 +150,8 @@ class PiXIdeWebSocketServer(
     private fun sendText(socket: WebSocket, text: String): Boolean = try {
         socket.send(text)
         true
-    } catch (_: RuntimeException) {
+    } catch (error: RuntimeException) {
+        logger.warn("Failed to send Pi WebSocket message", error)
         removeSocket(socket)
         runCatching { socket.close() }
         onClientCountChanged()
@@ -136,7 +160,12 @@ class PiXIdeWebSocketServer(
 
     private fun removeSocket(socket: WebSocket) {
         sockets.remove(socket)
-        socketsByTerminalSession.entries.removeIf { it.value == socket }
+        for (terminalSessionId in socketsByTerminalSession.keys) {
+            socketsByTerminalSession.computeIfPresent(terminalSessionId) { _, terminalSockets ->
+                terminalSockets.remove(socket)
+                terminalSockets.takeIf { it.isNotEmpty() }
+            }
+        }
     }
 
     private inner class JetBrainsWebSocketServer(
@@ -166,6 +195,13 @@ class PiXIdeWebSocketServer(
         }
 
         override fun onClose(conn: WebSocket, code: Int, reason: String, remote: Boolean) {
+            val terminalSessionIds = socketsByTerminalSession
+                .filterValues { conn in it }
+                .keys
+                .sorted()
+            logger.info(
+                "Closed Pi WebSocket sessions=$terminalSessionIds code=$code remote=$remote reason=$reason",
+            )
             removeSocket(conn)
             onClientCountChanged()
         }
@@ -179,10 +215,10 @@ class PiXIdeWebSocketServer(
         }
 
         override fun onError(conn: WebSocket?, ex: Exception) {
-            if (conn != null) removeSocket(conn)
+            logger.warn("Pi x IDE WebSocket error", ex)
+            if (conn?.isOpen == true) conn.close(CloseFrame.UNEXPECTED_CONDITION, "WebSocket error")
             if (!started.get()) startError = ex
             startLatch.countDown()
-            onClientCountChanged()
         }
     }
 }

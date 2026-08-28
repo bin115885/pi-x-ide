@@ -6,12 +6,15 @@ import com.balaenis.pixide.EXT_CONFIG_NAME
 import com.balaenis.pixide.protocol.AUTH_HEADER
 import com.balaenis.pixide.protocol.EditorSelectionSnapshot
 import com.google.gson.JsonParser
+import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.WebSocket
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
+import org.java_websocket.server.WebSocketServer as JavaWebSocketServer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -47,7 +50,7 @@ class PiXIdeWebSocketServerTest {
             assertTrue(server.clientCount >= 1)
 
             socket.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(5, TimeUnit.SECONDS)
-            Thread.sleep(100)
+            listener.closed.get(5, TimeUnit.SECONDS)
             assertEquals(0, server.clientCount)
         } finally {
             server.stop()
@@ -93,6 +96,90 @@ class PiXIdeWebSocketServerTest {
     }
 
     @Test
+    fun closingDuplicateConnectionKeepsOriginalTerminalRoute() {
+        val server = PiXIdeWebSocketServer(
+            authToken = "token",
+            pluginVersion = "1.19.10",
+            getInitialSelection = { null },
+        )
+        try {
+            val port = server.start()
+            val originalListener = CollectingListener()
+            val original = connect(port, "token", originalListener)
+            original.sendText(initializeRequest("terminal"), true).get(5, TimeUnit.SECONDS)
+            repeat(2) { assertNotNull(originalListener.nextMessage()) }
+
+            val duplicateListener = CollectingListener()
+            val duplicate = connect(port, "token", duplicateListener)
+            duplicate.sendText(initializeRequest("terminal"), true).get(5, TimeUnit.SECONDS)
+            repeat(2) { assertNotNull(duplicateListener.nextMessage()) }
+
+            val snapshot = EditorSelectionSnapshot(
+                filePath = "/repo/src/main.ts",
+                workspaceFolder = "/repo",
+                ranges = emptyList(),
+            )
+            assertTrue(server.sendAtMentioned(snapshot, "@src/main.ts", "terminal"))
+            val firstReceived = JsonParser.parseString(assertNotNull(originalListener.nextMessage())).asJsonObject
+            assertEquals("at_mentioned", firstReceived.get("method").asString)
+            assertEquals(null, duplicateListener.messages.poll(300, TimeUnit.MILLISECONDS))
+
+            duplicate.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(5, TimeUnit.SECONDS)
+            duplicateListener.closed.get(5, TimeUnit.SECONDS)
+            assertEquals(1, server.clientCount)
+
+            assertTrue(server.sendAtMentioned(snapshot, "@src/main.ts", "terminal"))
+            val remainingReceived = JsonParser.parseString(assertNotNull(originalListener.nextMessage())).asJsonObject
+            assertEquals("at_mentioned", remainingReceived.get("method").asString)
+
+            original.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(5, TimeUnit.SECONDS)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
+    fun connectionErrorClosesSocketAndAllowsTerminalToReconnect() {
+        val server = PiXIdeWebSocketServer(
+            authToken = "token",
+            pluginVersion = "1.19.8",
+            getInitialSelection = { null },
+        )
+        try {
+            val port = server.start()
+            val listener = CollectingListener()
+            val socket = connect(port, "token", listener)
+            socket.sendText(initializeRequest("terminal"), true).get(5, TimeUnit.SECONDS)
+            repeat(2) { assertNotNull(listener.nextMessage()) }
+
+            val delegateField = PiXIdeWebSocketServer::class.java.getDeclaredField("delegate")
+            delegateField.isAccessible = true
+            val delegate = delegateField.get(server) as JavaWebSocketServer
+            delegate.onError(delegate.connections.single(), IOException("transient"))
+            listener.closed.get(5, TimeUnit.SECONDS)
+            assertEquals(0, server.clientCount)
+
+            val replacementListener = CollectingListener()
+            val replacement = connect(port, "token", replacementListener)
+            replacement.sendText(initializeRequest("terminal"), true).get(5, TimeUnit.SECONDS)
+            repeat(2) { assertNotNull(replacementListener.nextMessage()) }
+
+            val snapshot = EditorSelectionSnapshot(
+                filePath = "/repo/src/main.ts",
+                workspaceFolder = "/repo",
+                ranges = emptyList(),
+            )
+            assertTrue(server.sendAtMentioned(snapshot, "@src/main.ts", "terminal"))
+            val received = JsonParser.parseString(assertNotNull(replacementListener.nextMessage())).asJsonObject
+            assertEquals("at_mentioned", received.get("method").asString)
+
+            replacement.sendClose(WebSocket.NORMAL_CLOSURE, "done").get(5, TimeUnit.SECONDS)
+        } finally {
+            server.stop()
+        }
+    }
+
+    @Test
     fun unauthorizedClientReceivesNoInitializeResponse() {
         val server = PiXIdeWebSocketServer(
             authToken = "token",
@@ -126,6 +213,7 @@ class PiXIdeWebSocketServerTest {
     }
     class CollectingListener : WebSocket.Listener {
         val messages = LinkedBlockingQueue<String>()
+        val closed = CompletableFuture<Int>()
 
         override fun onOpen(webSocket: WebSocket) {
             webSocket.request(1)
@@ -135,6 +223,15 @@ class PiXIdeWebSocketServerTest {
             messages.offer(data.toString())
             webSocket.request(1)
             return CompletableFuture.completedFuture(null)
+        }
+
+        override fun onClose(
+            webSocket: WebSocket,
+            statusCode: Int,
+            reason: String,
+        ): CompletionStage<*>? {
+            closed.complete(statusCode)
+            return null
         }
 
         fun nextMessage(): String? = messages.poll(5, TimeUnit.SECONDS)

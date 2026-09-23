@@ -24,9 +24,10 @@ Default shortcut:
 - Linux/Windows: `Ctrl+Alt+K`
 - macOS: `Cmd+Alt+K`
 
-When no text is selected, Pi receives the active file reference. When text is selected, Pi receives the selected range and content.
+When no text is selected, Pi receives the active file reference. When text is selected, Pi receives a line-range reference (the selection text is available as IDE context).
 
-For diagnostics, connect Pi first, then place the cursor on an error or warning and open Quick Fix. The Pi diagnostic actions appear only while at least one Pi client is connected. Choose **Pi: Fix it** to send the diagnostic details and nearby source context to one connected Pi client and start a diagnostic-analysis turn using the built-in prompt template. Choose **Pi: Send diagnostic** to send the same context to one connected Pi client and paste it into Pi's input box without starting a turn.
+Right-click selected code in the editor, or a file/folder in Explorer (including editor tabs), to attach an `@path` or `@path#Lx-Ly` reference. Attachments go only to the selected Pi terminal in the same VS Code workspace; the terminal is focused after sending. Plugin-created terminals and terminals where you directly ran `pi` are supported. Restart Pi after updating this extension so it reports its workspace and terminal process. Selections outside a workspace, mismatched projects, and ambiguous terminals are not sent.
+For diagnostics, select a Pi terminal in the same workspace, then place the cursor on an error or warning and open Quick Fix. The Pi diagnostic actions appear while a Pi client is connected. **Pi: Fix it** sends the diagnostic details and nearby source context to the selected Pi session and starts a diagnostic-analysis turn using the built-in prompt template. **Pi: Send diagnostic** sends the same context to that session's input box without starting a turn.
 
 ## Settings
 

@@ -244,14 +244,16 @@ void test("normalizes selection notifications before callbacks", async () => {
   await new Promise<void>((resolve) => wss.once("listening", resolve));
   let connection: IdeConnection | undefined;
   let initializedTerminalSessionId: string | undefined;
+  let initializedWorkspaceFolder: string | undefined;
   try {
     wss.on("connection", (socket) => {
       socket.on("message", (raw) => {
         const request = JSON.parse(decodeRawData(raw)) as {
           id: number | string;
-          params?: { terminalSessionId?: string };
+          params?: { terminalSessionId?: string; workspaceFolder?: string };
         };
         initializedTerminalSessionId = request.params?.terminalSessionId;
+        initializedWorkspaceFolder = request.params?.workspaceFolder;
         socket.send(
           JSON.stringify({
             jsonrpc: "2.0",
@@ -280,7 +282,11 @@ void test("normalizes selection notifications before callbacks", async () => {
       mentionResolve = resolve;
     });
     connection = new IdeConnection(
-      createCandidate({ ide: "jetbrains", port: address.port }),
+      createCandidate({
+        ide: "jetbrains",
+        port: address.port,
+        workspaceFolders: ["/home/julian", "\\\\wsl.localhost\\Ubuntu\\home\\julian\\repo"],
+      }),
       "/home/julian/repo",
       { onAtMentioned: mentionResolve, onSelectionChanged: selectionResolve },
       { env: { WSL_DISTRO_NAME: "Ubuntu", [TERMINAL_SESSION_ENV]: "terminal-123" } },
@@ -289,6 +295,7 @@ void test("normalizes selection notifications before callbacks", async () => {
     await connection.connect();
     const snapshot = await withTimeout(selection, 500, "timed out waiting for selection notification");
     assert.equal(initializedTerminalSessionId, "terminal-123");
+    assert.equal(initializedWorkspaceFolder, "\\\\wsl.localhost\\Ubuntu\\home\\julian\\repo");
     assert.equal(snapshot.filePath, "/home/julian/repo/src/a.ts");
     assert.equal(snapshot.workspaceFolder, "/home/julian/repo");
     const atMentioned = await withTimeout(mention, 500, "timed out waiting for at mentioned notification");

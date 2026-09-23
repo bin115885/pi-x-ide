@@ -28,6 +28,7 @@ import { toError, logExtensionError } from "../shared/errors.js";
 import { formatRangeMention } from "../shared/format.js";
 import { normalizeEditorSelectionSnapshotForHost } from "../shared/platform.js";
 import { decodeRawData } from "../shared/ws.js";
+import { isPathInsideOrEqual, normalizePathForComparison } from "../shared/paths.js";
 import { resolveIdeHost } from "./ide-host.js";
 
 export const IDE_CONNECT_TIMEOUT_MS = 5_000;
@@ -174,6 +175,10 @@ export class IdeConnection {
 
   private sendInitialize(): void {
     const env = this.options.env ?? process.env;
+    const normalizedCwd = normalizePathForComparison(this.cwd, env);
+    const workspaceFolder = this.candidate.lock.workspaceFolders
+      .filter((folder) => isPathInsideOrEqual(normalizePathForComparison(folder, env), normalizedCwd))
+      .sort((a, b) => b.length - a.length)[0];
     this.socket?.send(
       JSON.stringify({
         jsonrpc: "2.0",
@@ -183,7 +188,10 @@ export class IdeConnection {
           protocolVersion: PROTOCOL_VERSION,
           client: { name: EXT_CONFIG_NAME, version: "0.1.0" },
           cwd: this.cwd,
+          workspaceFolder,
           terminalSessionId: env[TERMINAL_SESSION_ENV],
+          parentProcessId: process.ppid,
+          platform: process.platform,
         },
       }),
     );

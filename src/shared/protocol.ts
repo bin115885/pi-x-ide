@@ -60,7 +60,10 @@ export interface InitializeParams {
     version: string;
   };
   cwd: string;
+  workspaceFolder?: string;
   terminalSessionId?: string;
+  parentProcessId?: number;
+  platform?: NodeJS.Platform;
 }
 
 export interface InitializeResult {

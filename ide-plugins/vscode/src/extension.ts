@@ -1,7 +1,8 @@
 // ABOUTME: Starts the VS Code-side pi-x-ide WebSocket bridge and lock-file lifecycle.
 // ABOUTME: Publishes editor selections to Pi while containing extension-host callback failures.
 import * as vscode from "vscode";
-import { PROTOCOL_VERSION } from "@shared/protocol";
+import { randomUUID } from "node:crypto";
+import { PROTOCOL_VERSION, TERMINAL_SESSION_ENV, type EditorSelectionSnapshot } from "@shared/protocol";
 import { formatRangeMention } from "@shared/format";
 import { errorMessage, logExtensionError, safeRun, safeRunAsync } from "@shared/errors";
 import { registerDiagnosticQuickFixes } from "./diagnostics";
@@ -26,6 +27,7 @@ let lockFile = undefined as ReturnType<typeof createLockFile> | undefined;
 let debounceTimer: NodeJS.Timeout | undefined;
 let status: vscode.StatusBarItem | undefined;
 let tmuxSessionCounter = 0;
+const piTerminalSessions = new WeakMap<vscode.Terminal, string>();
 
 function runVscode(scope: string, action: () => void): void {
   safeRun(`VS Code ${scope}`, action, (error) => reportVscodeError(scope, error));
@@ -73,7 +75,7 @@ async function activateExtension(context: vscode.ExtensionContext): Promise<void
   context.subscriptions.push(status);
   updateStatus("ready");
 
-  registerDiagnosticQuickFixes(context, () => server);
+  registerDiagnosticQuickFixes(context, () => server, selectedPiTarget);
 
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(() => scheduleSelectionBroadcast()),
@@ -83,8 +85,17 @@ async function activateExtension(context: vscode.ExtensionContext): Promise<void
       refreshLock().catch((error: unknown) => handleRefreshLockError(error));
       scheduleSelectionBroadcast();
     }),
-    vscode.commands.registerCommand("pi-x-ide.attachSelection", () =>
-      runVscode("attach selection", () => attachSelection()),
+    vscode.commands.registerCommand(
+      "pi-x-ide.attachSelection",
+      () => void runVscodeAsync("attach selection", attachSelection),
+    ),
+    vscode.commands.registerCommand(
+      "pi-x-ide.attachPath",
+      (uri?: vscode.Uri, selected?: vscode.Uri[]) =>
+        void runVscodeAsync("attach path", async () => {
+          if (uri) await attachPaths(selected?.length ? selected : [uri]);
+          else await attachSelection();
+        }),
     ),
     vscode.commands.registerCommand("pi-x-ide.openPiTerminal", () =>
       runVscode("open Pi terminal", () => openPiTerminal(context)),
@@ -138,53 +149,81 @@ function broadcastSelection(): void {
   }
 
   if (!snapshot) {
-    server.broadcast({
-      jsonrpc: "2.0",
-      method: "selection_cleared",
-      params: {
-        source: "vscode",
-        reason: "no-active-editor",
-        receivedAt: Date.now(),
-      },
-    });
+    server.broadcastSelection();
     updateStatus("no-file");
     return;
   }
 
-  server.broadcast({
-    jsonrpc: "2.0",
-    method: "selection_changed",
-    params: {
-      ...snapshot,
-      receivedAt: Date.now(),
-    },
-  });
+  server.broadcastSelection(snapshot);
   updateStatus(snapshot.ranges.length > 0 ? "selection" : "file");
 }
 
-function attachSelection(): void {
+async function attachSelection(): Promise<void> {
   const snapshot = getActiveSelectionSnapshot();
-  if (!snapshot || !server) {
+  if (!snapshot) {
     vscode.window.showWarningMessage("Pi x IDE: no active file to attach.");
     return;
   }
+  await attachSnapshots([snapshot]);
+}
 
-  const rangeText = formatRangeMention(snapshot);
-  server.broadcast({
-    jsonrpc: "2.0",
-    method: "at_mentioned",
-    params: {
-      ...snapshot,
-      rangeText,
-      receivedAt: Date.now(),
-    },
-  });
+async function attachPaths(uris: vscode.Uri[]): Promise<void> {
+  await attachSnapshots(
+    uris
+      .filter((uri) => uri.scheme === "file")
+      .map((uri) => ({
+        source: "vscode",
+        filePath: uri.fsPath,
+        workspaceFolder: vscode.workspace.getWorkspaceFolder(uri)?.uri.fsPath,
+        ranges: [],
+      })),
+  );
+}
 
-  if (server.clientCount === 0) {
-    vscode.window.showWarningMessage(`Pi x IDE: no Pi clients connected. Reference: ${rangeText}`);
-  } else {
+async function selectedPiTarget(): Promise<{ terminal: vscode.Terminal; id: string | number } | undefined> {
+  const terminal = vscode.window.activeTerminal;
+  if (!terminal) return undefined;
+  const sessionId = piTerminalSessions.get(terminal);
+  if (sessionId) return { terminal, id: sessionId };
+  const processId = await terminal.processId;
+  return processId && processId > 1 ? { terminal, id: processId } : undefined;
+}
+
+async function attachSnapshots(snapshots: EditorSelectionSnapshot[]): Promise<void> {
+  const target = await selectedPiTarget();
+  if (!target || !server) {
+    vscode.window.showWarningMessage("Pi x IDE: select a connected Pi terminal first.");
+    return;
+  }
+  if (
+    !snapshots.length ||
+    snapshots.some((snapshot) => !snapshot.workspaceFolder || snapshot.workspaceFolder !== snapshots[0].workspaceFolder)
+  ) {
+    vscode.window.showWarningMessage("Pi x IDE: select files from one VS Code workspace at a time.");
+    return;
+  }
+  for (const snapshot of snapshots) {
+    const rangeText = formatRangeMention(snapshot);
+    if (
+      !server.sendToTerminalSession(
+        target.id,
+        {
+          jsonrpc: "2.0",
+          method: "at_mentioned",
+          params: { ...snapshot, rangeText, receivedAt: Date.now() },
+        },
+        snapshot.filePath,
+        snapshot.workspaceFolder,
+      )
+    ) {
+      vscode.window.showWarningMessage(
+        `Pi x IDE: selected Pi terminal is disconnected or belongs to another workspace. Reference: ${rangeText}`,
+      );
+      return;
+    }
     vscode.window.setStatusBarMessage(`Pi x IDE attached ${rangeText}`, 2500);
   }
+  target.terminal.show(false);
 }
 
 function updateStatus(state: "ready" | "file" | "selection" | "no-file"): void {
@@ -198,8 +237,10 @@ function updateStatus(state: "ready" | "file" | "selection" | "no-file"): void {
 
 function openPiTerminal(context: vscode.ExtensionContext): void {
   const useTmux = vscode.workspace.getConfiguration(CONFIG_SECTION).get<boolean>(USE_TMUX_CONFIG_KEY, false);
+  const sessionId = randomUUID();
   const terminal = vscode.window.createTerminal({
     name: PI_TERMINAL_NAME,
+    env: { [TERMINAL_SESSION_ENV]: sessionId },
     hideFromUser: true,
     iconPath: {
       light: vscode.Uri.file(context.asAbsolutePath("assets/icons/icon-light.png")),
@@ -211,6 +252,7 @@ function openPiTerminal(context: vscode.ExtensionContext): void {
     },
   });
 
+  piTerminalSessions.set(terminal, sessionId);
   terminal.sendText(useTmux ? buildTmuxPiCommand() : "pi");
   terminal.show(false);
 }

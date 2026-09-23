@@ -9,7 +9,7 @@ import type {
   IdeDiagnosticRelatedInformation,
   Position,
 } from "@shared/protocol";
-import { errorMessage, logExtensionError, safeRun } from "@shared/errors";
+import { errorMessage, logExtensionError, safeRun, safeRunAsync } from "@shared/errors";
 import type { IdeWebSocketServer } from "./server";
 
 export const FIX_WITH_PI_COMMAND = "pi-x-ide.fixWithPiSuggest";
@@ -22,6 +22,7 @@ export const MAX_SELECTED_TEXT_CHARS = 4_000;
 export function registerDiagnosticQuickFixes(
   context: vscode.ExtensionContext,
   getServer: () => IdeWebSocketServer | undefined,
+  getTarget: () => Promise<{ terminal: vscode.Terminal; id: string | number } | undefined>,
 ): void {
   const provider = new PiDiagnosticCodeActionProvider(getServer);
   context.subscriptions.push(
@@ -30,19 +31,24 @@ export function registerDiagnosticQuickFixes(
     }),
     vscode.commands.registerCommand(FIX_WITH_PI_COMMAND, (payload: DiagnosticFixRequestedParams) =>
       runDiagnosticCommand(FIX_WITH_PI_TITLE, () =>
-        sendDiagnosticRequest(getServer(), { ...payload, action: "fix" }, FIX_WITH_PI_TITLE),
+        sendDiagnosticRequest(getServer(), getTarget(), { ...payload, action: "fix" }, FIX_WITH_PI_TITLE),
       ),
     ),
     vscode.commands.registerCommand(SEND_DIAGNOSTIC_COMMAND, (payload: DiagnosticFixRequestedParams) =>
       runDiagnosticCommand(SEND_DIAGNOSTIC_TITLE, () =>
-        sendDiagnosticRequest(getServer(), { ...payload, action: "send-diagnostic" }, SEND_DIAGNOSTIC_TITLE),
+        sendDiagnosticRequest(
+          getServer(),
+          getTarget(),
+          { ...payload, action: "send-diagnostic" },
+          SEND_DIAGNOSTIC_TITLE,
+        ),
       ),
     ),
   );
 }
 
-function runDiagnosticCommand(title: string, action: () => void): void {
-  safeRun(`VS Code diagnostic command ${title}`, action, (error) => {
+function runDiagnosticCommand(title: string, action: () => Promise<void>): void {
+  void safeRunAsync(`VS Code diagnostic command ${title}`, action, (error) => {
     logExtensionError(`VS Code diagnostic command ${title}`, error);
     void vscode.window.showWarningMessage(`Pi x IDE: ${title} failed: ${errorMessage(error)}`);
   });
@@ -85,25 +91,31 @@ class PiDiagnosticCodeActionProvider implements vscode.CodeActionProvider<vscode
   }
 }
 
-function sendDiagnosticRequest(
+async function sendDiagnosticRequest(
   server: IdeWebSocketServer | undefined,
+  targetPromise: Promise<{ terminal: vscode.Terminal; id: string | number } | undefined>,
   payload: DiagnosticFixRequestedParams,
   title: string,
-): void {
-  if (!server) {
-    void vscode.window.showWarningMessage(`Pi x IDE: diagnostic server is not ready for ${title}.`);
+): Promise<void> {
+  const target = await targetPromise;
+  if (!server || !target) {
+    void vscode.window.showWarningMessage(`Pi x IDE: select a connected Pi terminal for ${title}.`);
     return;
   }
 
-  const sent = server.sendToFirstClient({
-    jsonrpc: "2.0",
-    method: "diagnostic_fix_requested",
-    params: payload,
-  });
+  const sent = server.sendToTerminalSession(
+    target.id,
+    { jsonrpc: "2.0", method: "diagnostic_fix_requested", params: payload },
+    payload.filePath,
+    payload.workspaceFolder,
+  );
 
   if (!sent) {
-    void vscode.window.showWarningMessage(`Pi x IDE: no Pi clients connected for ${title}.`);
+    void vscode.window.showWarningMessage(
+      `Pi x IDE: selected Pi terminal is disconnected or belongs to another workspace for ${title}.`,
+    );
   } else {
+    target.terminal.show(false);
     vscode.window.setStatusBarMessage(`Pi x IDE sent ${title}`, 2500);
   }
 }

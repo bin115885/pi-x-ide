@@ -1,10 +1,10 @@
 {
   "name": "pi-x-ide",
-  "displayName": "Pi x IDE for VS Code",
+  "displayName": "Pi x IDE for VS Code (Local)",
   "description": "Send the active VS Code file and selection to Pi.",
   "icon": "assets/icons/icon-mark-128.png",
   "version": "1.19.3",
-  "publisher": "balaenis",
+  "publisher": "qd",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -33,6 +33,10 @@
         "title": "Pi x IDE: Attach Selection to Pi"
       },
       {
+        "command": "pi-x-ide.attachPath",
+        "title": "Pi x IDE: Send to Pi"
+      },
+      {
         "command": "pi-x-ide.openPiTerminal",
         "title": "Open Pi in Terminal",
         "icon": {
@@ -42,6 +46,24 @@
       }
     ],
     "menus": {
+      "editor/context": [
+        {
+          "command": "pi-x-ide.attachSelection",
+          "when": "resourceScheme == file"
+        }
+      ],
+      "editor/title/context": [
+        {
+          "command": "pi-x-ide.attachPath",
+          "when": "resourceScheme == file"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "pi-x-ide.attachPath",
+          "when": "resourceScheme == file"
+        }
+      ],
       "editor/title": [
         {
           "command": "pi-x-ide.openPiTerminal",

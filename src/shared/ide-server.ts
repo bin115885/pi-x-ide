@@ -12,12 +12,16 @@ import {
 import { isJsonRpcRequest } from "./jsonrpc-guard.js";
 import { logExtensionError } from "./errors.js";
 import { decodeRawData } from "./ws.js";
+import { isPathInsideOrEqual, normalizePath } from "./paths.js";
 
 export class IdeWebSocketServer {
   private httpServer?: Server;
   private wss?: WebSocketServer;
   private readonly sockets = new Set<WebSocket>();
 
+  private readonly terminalSessions = new Map<WebSocket, string>();
+  private readonly terminalProcessIds = new Map<WebSocket, number>();
+  private readonly workspaceFolders = new Map<WebSocket, string>();
   constructor(
     private readonly authToken: string,
     private readonly serverInfo: { name: string; version?: string; ide?: IdeSource },
@@ -47,8 +51,18 @@ export class IdeWebSocketServer {
 
     this.wss.on("connection", (socket) => {
       this.sockets.add(socket);
-      socket.on("close", () => this.sockets.delete(socket));
-      socket.on("error", () => this.sockets.delete(socket));
+      socket.on("close", () => {
+        this.sockets.delete(socket);
+        this.terminalSessions.delete(socket);
+        this.terminalProcessIds.delete(socket);
+        this.workspaceFolders.delete(socket);
+      });
+      socket.on("error", () => {
+        this.sockets.delete(socket);
+        this.terminalSessions.delete(socket);
+        this.terminalProcessIds.delete(socket);
+        this.workspaceFolders.delete(socket);
+      });
       socket.on("message", (raw) => {
         try {
           this.handleMessage(socket, decodeRawData(raw));
@@ -96,9 +110,31 @@ export class IdeWebSocketServer {
     return this.sendText(socket, text, "targeted send");
   }
 
+  broadcastSelection(snapshot?: EditorSelectionSnapshot): void {
+    const ide = this.serverInfo.ide ?? "vscode";
+    for (const socket of this.openSockets) this.sendSelection(socket, snapshot, ide);
+  }
+
+  sendToTerminalSession(
+    terminal: string | number,
+    value: unknown,
+    filePath: string,
+    workspaceFolder?: string,
+  ): boolean {
+    const sessions = typeof terminal === "string" ? this.terminalSessions : this.terminalProcessIds;
+    const sockets = this.openSockets.filter((client) => sessions.get(client) === terminal);
+    const socket = sockets.length === 1 ? sockets[0] : undefined;
+    return socket && this.matchesWorkspace(socket, { filePath, workspaceFolder })
+      ? this.sendValue(socket, value, "terminal send")
+      : false;
+  }
+
   async stop(): Promise<void> {
     for (const socket of this.sockets) socket.close();
     this.sockets.clear();
+    this.terminalSessions.clear();
+    this.terminalProcessIds.clear();
+    this.workspaceFolders.clear();
     await Promise.all([
       new Promise<void>((resolve) => this.wss?.close(() => resolve()) ?? resolve()),
       new Promise<void>((resolve) => this.httpServer?.close(() => resolve()) ?? resolve()),
@@ -116,6 +152,36 @@ export class IdeWebSocketServer {
     if (!isJsonRpcRequest(parsed)) return;
     if (parsed.method !== "initialize") return;
 
+    const terminalSessionId =
+      parsed.params && typeof parsed.params === "object" && "terminalSessionId" in parsed.params
+        ? parsed.params.terminalSessionId
+        : undefined;
+    if (typeof terminalSessionId === "string" && terminalSessionId) {
+      this.terminalSessions.set(socket, terminalSessionId);
+    }
+    const parentProcessId =
+      parsed.params && typeof parsed.params === "object" && "parentProcessId" in parsed.params
+        ? parsed.params.parentProcessId
+        : undefined;
+    const platform =
+      parsed.params && typeof parsed.params === "object" && "platform" in parsed.params
+        ? parsed.params.platform
+        : undefined;
+    if (
+      platform === process.platform &&
+      typeof parentProcessId === "number" &&
+      Number.isSafeInteger(parentProcessId) &&
+      parentProcessId > 1
+    ) {
+      this.terminalProcessIds.set(socket, parentProcessId);
+    }
+    const workspaceFolder =
+      parsed.params && typeof parsed.params === "object" && "workspaceFolder" in parsed.params
+        ? parsed.params.workspaceFolder
+        : undefined;
+    if (typeof workspaceFolder === "string" && workspaceFolder) {
+      this.workspaceFolders.set(socket, normalizePath(workspaceFolder));
+    }
     const ide = this.serverInfo.ide ?? "vscode";
     const result: InitializeResult = {
       protocolVersion: PROTOCOL_VERSION,
@@ -128,24 +194,30 @@ export class IdeWebSocketServer {
 
     this.sendValue(socket, { jsonrpc: "2.0", id: parsed.id, result }, "initialize response");
 
-    const snapshot = this.getInitialSelection?.();
+    this.sendSelection(socket, this.getInitialSelection?.(), ide);
+  }
+
+  private matchesWorkspace(socket: WebSocket, snapshot: { filePath: string; workspaceFolder?: string }): boolean {
+    const workspaceFolder = snapshot.workspaceFolder;
+    return (
+      !!workspaceFolder &&
+      this.workspaceFolders.get(socket) === normalizePath(workspaceFolder) &&
+      isPathInsideOrEqual(workspaceFolder, snapshot.filePath)
+    );
+  }
+
+  private sendSelection(socket: WebSocket, snapshot: EditorSelectionSnapshot | undefined, ide: IdeSource): void {
+    const selected = snapshot && (ide !== "vscode" || this.matchesWorkspace(socket, snapshot)) ? snapshot : undefined;
     this.sendValue(
       socket,
       {
         jsonrpc: "2.0",
-        method: snapshot ? "selection_changed" : "selection_cleared",
-        params: snapshot
-          ? {
-              ...snapshot,
-              receivedAt: Date.now(),
-            }
-          : {
-              source: ide,
-              reason: "no-active-editor",
-              receivedAt: Date.now(),
-            },
+        method: selected ? "selection_changed" : "selection_cleared",
+        params: selected
+          ? { ...selected, receivedAt: Date.now() }
+          : { source: ide, reason: "no-active-editor", receivedAt: Date.now() },
       },
-      "initial selection",
+      "selection",
     );
   }
 

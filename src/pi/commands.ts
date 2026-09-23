@@ -29,7 +29,6 @@ export interface IdeCommandActions {
    * May wait for the already-started heavy runtime preload; always reuses one module promise.
    */
   disconnect: (ctx: ExtensionCommandContext, disabled?: boolean) => Promise<void>;
-  installExtension: (ctx: ExtensionCommandContext) => Promise<void>;
 }
 
 export function registerIdeCommand(
@@ -65,7 +64,6 @@ export function registerIdeCommand(
         { value: "auto", label: "auto", description: "Auto-connect to the most recent IDE" },
         { value: "off", label: "off", description: "Disable IDE integration" },
         { value: "attach", label: "attach", description: "Attach latest IDE selection to the prompt" },
-        { value: "install", label: "install", description: "Install or update the IDE extension" },
         { value: "settings", label: "settings", description: "Open IDE settings (Display, AutoInstall, ...)" },
       ];
       const filtered = subcommands.filter((s) => s.value.startsWith(argumentPrefix));
@@ -98,9 +96,6 @@ export function registerIdeCommand(
             case "attach":
               attachLatest(runtime, ctx);
               return;
-            case "install":
-              await actions.installExtension(ctx);
-              return;
             case "settings": {
               // Keep SettingsList / pi-tui off the static shell import graph.
               const { showIdeSettings } = await import("./config-ui.js");
@@ -108,7 +103,7 @@ export function registerIdeCommand(
               return;
             }
             default:
-              ctx.ui.notify("Usage: /ide [status|list|auto|off|attach|install|settings]", "warning");
+              ctx.ui.notify("Usage: /ide [status|list|auto|off|attach|settings]", "warning");
           }
         },
         ctx,

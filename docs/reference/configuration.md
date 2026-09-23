@@ -18,7 +18,7 @@ Pi-side variables can be set as real environment variables **or** in config
   "fixPrompt": "Analyze the errors and warnings at the following location, and try to fix them:\n{DIAGNOSTIC}",
   "status_display": "widget",
   "env": {
-    "PI_X_IDE_AUTO_INSTALL": "1",
+    "PI_X_IDE_AUTO_INSTALL": "0",
     "PI_X_IDE_ATTACH_SHORTCUT": "ctrl+alt+k"
   }
 }
@@ -82,7 +82,7 @@ custom command. See
 
 | Variable                        | Default       | Description                                                                            |
 | ------------------------------- | ------------- | -------------------------------------------------------------------------------------- |
-| `PI_X_IDE_AUTO_INSTALL`         | `1`           | Auto-install the VS Code extension on Pi startup. Set to `0`/`false`/`off` to disable. Also configurable as `AutoInstall` in `/ide settings`. |
+| `PI_X_IDE_AUTO_INSTALL`         | `0`           | Auto-install the VS Code extension on Pi startup when enabled (`1`/`true`); disabled by default. Also configurable as `AutoInstall` in `/ide settings`. |
 | `PI_X_IDE_ATTACH_SHORTCUT`      | `ctrl+alt+k`  | Pi TUI shortcut for `/ide attach`. Set to `off`, `none`, `false`, or `0` to disable.   |
 | `PI_X_IDE_HOST_OVERRIDE`        | (unset)       | Override the host Pi uses for IDE WebSocket connections. Useful for WSL2 networking.   |
 | `PI_X_IDE_ZED_DB`               | (auto-detect) | Override the path to Zed's SQLite database.                                            |

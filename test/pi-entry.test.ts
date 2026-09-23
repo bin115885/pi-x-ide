@@ -303,7 +303,6 @@ function createFakeRuntimeServices(overrides: Partial<RuntimeServicesModule> = {
     connectAuto: () => Promise.resolve(),
     connectCandidate: () => Promise.resolve(),
     disconnect: () => Promise.resolve(),
-    installExtension: () => Promise.resolve(),
     ...overrides,
   };
 }

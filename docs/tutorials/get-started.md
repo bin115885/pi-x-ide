@@ -39,11 +39,6 @@ Open your IDE's **Extensions** panel and search for
 [`balaenis.pi-x-ide`](https://marketplace.visualstudio.com/items?itemName=balaenis.pi-x-ide),
 then install it.
 
-> Alternatively, run `/ide install` inside Pi's TUI — it auto-detects `code`,
-> `cursor`, or `windsurf` and installs the extension for you. On startup, Pi also
-> tries to auto-install the extension when it detects a supported VS Code
-> integrated terminal.
-
 Reload the IDE window after installing so the extension activates.
 
 ## Step 3: Start Pi in your project

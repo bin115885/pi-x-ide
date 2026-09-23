@@ -10,7 +10,6 @@ Pi × IDE 在 Pi TUI 中注册 `/ide` 命令族，用于管理 IDE 连接。
 | `/ide auto`    | 重新按 cwd 自动匹配，匹配成功时连接。               |
 | `/ide off`     | 断开并关闭自动上下文附加。                          |
 | `/ide attach`  | 手动把最新选区范围插入输入框。                      |
-| `/ide install` | 通过支持的 IDE CLI 安装或更新 `balaenis.pi-x-ide`。 |
 | `/ide settings`  | 打开 IDE 设置（`Display`、`AutoInstall` 等）。      |
 
 ### `/ide settings`
@@ -20,13 +19,13 @@ Pi × IDE 在 Pi TUI 中注册 `/ide` 命令族，用于管理 IDE 连接。
 ```text
 Settings:
 → Display       widget      IDE 状态显示位置：widget 或 statusline
-  AutoInstall   true        启动时自动安装 VS Code 系扩展
+  AutoInstall   false       启动时自动安装 VS Code 系扩展
 ```
 
 | 设置          | 取值                   | 配置键 / 环境变量           | 默认     |
 | ------------- | ---------------------- | --------------------------- | -------- |
 | `Display`     | `widget` / `statusline` | `status_display`            | `widget` |
-| `AutoInstall` | `true` / `false`       | `env.PI_X_IDE_AUTO_INSTALL` | `true`   |
+| `AutoInstall` | `true` / `false`       | `env.PI_X_IDE_AUTO_INSTALL` | `false`  |
 
 快捷键：
 

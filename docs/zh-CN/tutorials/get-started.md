@@ -32,9 +32,6 @@ pi install npm:pi-x-ide
 在 IDE 的 **扩展** 面板搜索
 [`balaenis.pi-x-ide`](https://marketplace.visualstudio.com/items?itemName=balaenis.pi-x-ide)
 并安装。
-
-> 也可以在 Pi TUI 中运行 `/ide install`，它会自动检测 `code`、`cursor` 或 `windsurf` 并安装扩展。Pi 启动时若检测到受支持的 VS Code 集成终端，也会尝试自动安装。
-
 安装后重新加载 IDE 窗口，让扩展生效。
 
 ## 第 3 步：在项目中启动 Pi

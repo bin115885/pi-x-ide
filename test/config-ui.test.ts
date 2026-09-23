@@ -189,7 +189,7 @@ void test("showIdeSettings honors the host keybinding manager in the bundled Set
     const raw = JSON.parse(await readFile(resolvePiGlobalConfigPath(home), "utf8")) as {
       env?: Record<string, string>;
     };
-    assert.equal(raw.env?.[AUTO_INSTALL_ENV_KEY], "false");
+    assert.equal(raw.env?.[AUTO_INSTALL_ENV_KEY], "true");
   });
 });
 

@@ -15,29 +15,12 @@ Open your IDE's **Extensions** panel and search for
 [`balaenis.pi-x-ide`](https://marketplace.visualstudio.com/items?itemName=balaenis.pi-x-ide),
 then install it. Reload the window after installing.
 
-## Option B: Install via the Pi CLI
+## Optional: Auto-install on Pi startup
 
-Inside Pi's TUI, run:
-
-```
-/ide install
-```
-
-Pi auto-detects the `code`, `cursor`, or `windsurf` CLI on your `PATH` and runs
-`--force --install-extension` against it.
-
-## Option C: Auto-install on Pi startup
-
-When Pi starts from a supported VS Code integrated terminal, it attempts to
-auto-install or update the extension asynchronously. This is on by default. To
-disable it, set:
-
-```bash
-PI_X_IDE_AUTO_INSTALL=0
-```
-
-See the [configuration reference](../reference/configuration.md) for all
-Pi-side options.
+When explicitly enabled with `PI_X_IDE_AUTO_INSTALL=1`, Pi can install or update
+the Marketplace extension from a supported VS Code integrated terminal.
+This is disabled by default. See the
+[configuration reference](../reference/configuration.md) for all Pi-side options.
 
 ## Verify the connection
 

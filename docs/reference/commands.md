@@ -11,7 +11,6 @@ connections.
 | `/ide auto`    | Re-attempt automatic matching by `cwd` and connect when matched.   |
 | `/ide off`     | Disconnect and disable automatic context attachment.               |
 | `/ide attach`  | Manually insert the latest selection range into the input box.     |
-| `/ide install` | Install or update `balaenis.pi-x-ide` through a supported IDE CLI. |
 | `/ide settings`  | Open IDE settings (`Display`, `AutoInstall`, …).                   |
 
 ### `/ide settings`
@@ -21,13 +20,13 @@ Unified settings entry. Layout:
 ```text
 Settings:
 → Display       widget      IDE status placement: widget or statusline
-  AutoInstall   true        Auto-install VS Code-family extension on startup
+  AutoInstall   false       Auto-install VS Code-family extension on startup
 ```
 
 | Setting       | Values                 | Config key / env            | Default  |
 | ------------- | ---------------------- | --------------------------- | -------- |
 | `Display`     | `widget` / `statusline` | `status_display`            | `widget` |
-| `AutoInstall` | `true` / `false`       | `env.PI_X_IDE_AUTO_INSTALL` | `true`   |
+| `AutoInstall` | `true` / `false`       | `env.PI_X_IDE_AUTO_INSTALL` | `false`  |
 
 Keybindings:
 

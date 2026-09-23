@@ -458,6 +458,7 @@ void test("writePiConfigSettings merges AutoInstall env without wiping other env
   const projectDir = join(root, "project");
   await mkdir(home, { recursive: true });
 
+  assert.equal(resolvePiConfigAutoInstall({ projectDir, home }).value, false);
   writePiConfigSettings(
     { display: "widget", autoInstall: false },
     { scope: "global", home },

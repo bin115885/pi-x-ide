@@ -54,7 +54,6 @@ export interface IdeInstallResult {
 
 export interface DiscoverInstallCandidatesOptions {
   env?: NodeJS.ProcessEnv;
-  includeLowConfidence?: boolean;
   timeoutMs?: number;
 }
 
@@ -74,7 +73,7 @@ export function isAutoInstallEnabled(
 ): boolean {
   const configuredEnv = resolvePiConfigEnv(env, options);
   const value = configuredEnv[PI_X_IDE_AUTO_INSTALL_ENV];
-  if (value === undefined) return true;
+  if (value === undefined) return false;
   return !["0", "false", "off"].includes(value.trim().toLowerCase());
 }
 
@@ -223,7 +222,6 @@ export function discoverInstallCandidatesEffect(
   return Effect.gen(function* () {
     const env = resolvePiConfigEnv(options.env ?? process.env);
     const currentIde = inferCurrentIdeFromEnv(env);
-    const includeLowConfidence = options.includeLowConfidence ?? false;
     const timeoutMs = options.timeoutMs ?? DEFAULT_LIST_EXTENSIONS_TIMEOUT_MS;
     const candidates: IdeInstallCandidate[] = [];
 
@@ -232,7 +230,7 @@ export function discoverInstallCandidatesEffect(
       if (!cliPath) continue;
 
       const confidence: IdeInstallConfidence = currentIde === profile.id ? "current-terminal" : "available-cli";
-      if (confidence !== "current-terminal" && !includeLowConfidence) continue;
+      if (confidence !== "current-terminal") continue;
 
       const { installedVersion, listError } = yield* listExtensionVersion(cliPath, timeoutMs);
       const reason = resolveInstallReason(installedVersion, PI_X_IDE_TARGET_VERSION, listError);

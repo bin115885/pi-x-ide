@@ -55,8 +55,6 @@ export function registerPiIdeExtension(pi: ExtensionAPI, options: RegisterPiIdeE
       ),
     disconnect: (ctx, disabled) =>
       withRuntimeServices(loadRuntimeServices, runtime, ctx, (services) => services.disconnect(runtime, ctx, disabled)),
-    installExtension: (ctx) =>
-      withRuntimeServices(loadRuntimeServices, runtime, ctx, (services) => services.installExtension(runtime, ctx)),
   });
 
   // Start the heavy runtime import during factory execution but do not await it.

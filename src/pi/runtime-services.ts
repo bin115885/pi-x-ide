@@ -15,7 +15,6 @@ import {
   installIdeExtension,
   isAutoInstallEnabled,
   selectAutoInstallCandidate,
-  type IdeInstallCandidate,
 } from "./install.js";
 import { resetReconnectState, scheduleReconnect, stopReconnectScheduling } from "./reconnect.js";
 import { containPiError } from "./safety.js";
@@ -125,52 +124,6 @@ export function disconnect(
   return Promise.resolve();
 }
 
-export async function installExtension(runtime: PiIdeRuntime, ctx: ExtensionCommandContext): Promise<void> {
-  runtime.ctx = ctx;
-  runtime.cwd = ctx.cwd;
-
-  const candidates = await discoverInstallCandidates({ includeLowConfidence: true });
-  if (candidates.length === 0) {
-    ctx.ui.notify(
-      "No supported VS Code-family IDE CLI found. Install VS Code, Cursor, or Windsurf CLI first.",
-      "warning",
-    );
-    return;
-  }
-
-  const candidate = await selectManualInstallCandidate(candidates, ctx);
-  if (!candidate) return;
-
-  runtime.enabled = true;
-  if (!candidate.needsInstall) {
-    ctx.ui.notify(
-      `${candidate.label} already has Pi x IDE ${candidate.installedVersion ?? candidate.targetVersion}.`,
-      "info",
-    );
-    await connectAutoInternal(runtime, ctx);
-    return;
-  }
-
-  ctx.ui.notify(`${installActionLabel(candidate)} Pi x IDE extension for ${candidate.label}...`, "info");
-  const result = await installIdeExtension(candidate, runtime);
-  if (!result.success) {
-    ctx.ui.notify(
-      `Failed to install Pi x IDE extension for ${candidate.label}: ${describeInstallError(result.error, result.stderr)}`,
-      "warning",
-    );
-    return;
-  }
-
-  ctx.ui.notify(`Pi x IDE extension installed for ${candidate.label}. Trying to connect...`, "info");
-  const connected = await retryConnectAfterInstall(runtime, ctx, runtime.sessionGeneration);
-  if (!connected && runtime.enabled) {
-    ctx.ui.notify(
-      `Pi x IDE extension installed for ${candidate.label}. If Pi does not connect automatically, reload the IDE window and run /ide auto.`,
-      "warning",
-    );
-  }
-}
-
 async function maybeAutoInstallAndReconnect(
   runtime: PiIdeRuntime,
   ctx: ExtensionContext,
@@ -229,18 +182,6 @@ async function maybeAutoInstallAndReconnect(
   }
 }
 
-async function selectManualInstallCandidate(
-  candidates: IdeInstallCandidate[],
-  ctx: ExtensionCommandContext,
-): Promise<IdeInstallCandidate | undefined> {
-  if (candidates.length === 1) return candidates[0];
-
-  const labels = candidates.map((candidate, index) => `${index + 1}. ${formatInstallCandidate(candidate)}`);
-  const choice = await ctx.ui.select("Select IDE to install Pi x IDE", labels);
-  if (!choice) return undefined;
-  return candidates[labels.indexOf(choice)];
-}
-
 async function retryConnectAfterInstall(
   runtime: PiIdeRuntime,
   ctx: ExtensionContext | ExtensionCommandContext,
@@ -262,19 +203,6 @@ async function retryConnectAfterInstall(
 
 function isInstallSessionActive(runtime: PiIdeRuntime, generation: number): boolean {
   return runtime.enabled && runtime.sessionGeneration === generation;
-}
-
-function formatInstallCandidate(candidate: IdeInstallCandidate): string {
-  const version = candidate.installedVersion ? `installed ${candidate.installedVersion}` : "not installed";
-  const status =
-    candidate.reason === "current" ? "up to date" : `${installActionLabel(candidate).toLowerCase()} required`;
-  return `${candidate.label} — ${version}, target ${candidate.targetVersion}, ${status} (${candidate.cliPath})`;
-}
-
-function installActionLabel(candidate: IdeInstallCandidate): string {
-  if (candidate.reason === "outdated") return "Updating";
-  if (candidate.reason === "unknown") return "Installing or updating";
-  return "Installing";
 }
 
 function notifyInstall(

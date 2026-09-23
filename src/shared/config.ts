@@ -173,7 +173,7 @@ export function resolvePiConfigAutoInstall(
   if (typeof configPathOrOptions === "string") {
     const raw = readEnvValueFromFile(configPathOrOptions, AUTO_INSTALL_ENV_KEY);
     return raw === undefined
-      ? { value: true, scope: "default" }
+      ? { value: false, scope: "default" }
       : { value: parseAutoInstallValue(raw), scope: "global", path: configPathOrOptions };
   }
 
@@ -192,7 +192,7 @@ export function resolvePiConfigAutoInstall(
     return { value: parseAutoInstallValue(globalRaw), scope: "global", path: globalPath };
   }
 
-  return { value: true, scope: "default" };
+  return { value: false, scope: "default" };
 }
 
 export function resolveIdeConfigSettings(

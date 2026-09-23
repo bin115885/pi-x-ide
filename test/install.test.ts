@@ -26,7 +26,7 @@ import { createRuntime } from "../src/pi/state.js";
 import { CONFIG_DIR_NAME, resolvePiConfigEnv } from "../src/shared/config.js";
 
 void test("checks auto-install env gate", () => {
-  assert.equal(isAutoInstallEnabled({}), true);
+  assert.equal(isAutoInstallEnabled({}), false);
   assert.equal(isAutoInstallEnabled({ PI_X_IDE_AUTO_INSTALL: "0" }), false);
   assert.equal(isAutoInstallEnabled({ PI_X_IDE_AUTO_INSTALL: "false" }), false);
   assert.equal(isAutoInstallEnabled({ PI_X_IDE_AUTO_INSTALL: "OFF" }), false);
@@ -120,7 +120,6 @@ void test("/ide disconnect awaits the async action before completing", async () 
       disconnectStarted = true;
       await disconnectGate;
     },
-    installExtension: () => Promise.resolve(),
   });
 
   assert.ok(registered);
@@ -138,46 +137,37 @@ void test("/ide disconnect awaits the async action before completing", async () 
   assert.equal(handlerDone, true);
 });
 
-void test("/ide install completion and handler are wired", async () => {
-  type RegisteredCommand = {
-    getArgumentCompletions: (argumentPrefix: string) => { value: string; label: string; description: string }[] | null;
-    handler: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
-  };
-
-  let registered: RegisteredCommand | undefined;
-  let shortcut: string | undefined;
-  let installCalled = false;
+void test("/ide install is not exposed", async () => {
+  let registered:
+    | {
+        getArgumentCompletions: (prefix: string) => { value: string }[] | null;
+        handler: (args: string, ctx: ExtensionCommandContext) => Promise<void>;
+      }
+    | undefined;
+  const notifications: string[] = [];
   const pi = {
-    registerCommand: (_name: string, command: RegisteredCommand) => {
+    registerCommand: (_name: string, command: typeof registered) => {
       registered = command;
     },
-    registerShortcut: (key: string) => {
-      shortcut = key;
-    },
+    registerShortcut: () => {},
   } as unknown as ExtensionAPI;
-
-  registerIdeCommand(
-    pi,
-    createRuntime(),
-    {
-      refreshCandidates: () => Promise.resolve([]),
-      connectAuto: () => Promise.resolve(),
-      connectCandidate: () => Promise.resolve(),
-      disconnect: () => Promise.resolve(),
-      installExtension: () => {
-        installCalled = true;
-        return Promise.resolve();
-      },
-    },
-    { env: { [PI_X_IDE_ATTACH_SHORTCUT_ENV]: "ctrl+shift+i" } },
-  );
-
+  registerIdeCommand(pi, createRuntime(), {
+    refreshCandidates: () => Promise.resolve([]),
+    connectAuto: () => Promise.resolve(),
+    connectCandidate: () => Promise.resolve(),
+    disconnect: () => Promise.resolve(),
+  });
   assert.ok(registered);
-  assert.equal(shortcut, "ctrl+shift+i");
-  assert.ok(registered.getArgumentCompletions("")?.some((completion) => completion.value === "install"));
-
-  await registered.handler("install", createCommandContext());
-  assert.equal(installCalled, true);
+  assert.equal(
+    registered.getArgumentCompletions("")?.some(({ value }) => value === "install"),
+    false,
+  );
+  const ctx = createCommandContext();
+  ctx.ui.notify = (message) => {
+    notifications.push(message);
+  };
+  await registered.handler("install", ctx);
+  assert.match(notifications[0] ?? "", /Usage: \/ide/);
 });
 
 function createCandidate(overrides: Partial<IdeInstallCandidate> = {}): IdeInstallCandidate {

@@ -75,7 +75,14 @@ async function activateExtension(context: vscode.ExtensionContext): Promise<void
       if (editor) void runVscodeAsync("keep files left of Pi", moveFileGroupLeft);
     }),
     vscode.window.onDidChangeTextEditorSelection(() => scheduleSelectionBroadcast()),
-    vscode.window.tabGroups.onDidChangeTabs(() => scheduleSelectionBroadcast()),
+    vscode.window.tabGroups.onDidChangeTabs((event) => {
+      scheduleSelectionBroadcast();
+      if (
+        [...event.opened, ...event.changed].some((tab) => tab.isActive && tab.input instanceof vscode.TabInputTextDiff)
+      ) {
+        setTimeout(() => void runVscodeAsync("keep files left of Pi", moveFileGroupLeft), 0);
+      }
+    }),
     vscode.window.tabGroups.onDidChangeTabGroups((event) => {
       if (event.opened.length || event.changed.some((group) => group.isActive)) {
         setTimeout(() => void runVscodeAsync("keep files left of Pi", moveFileGroupLeft), 0);
@@ -218,7 +225,8 @@ const moveFileGroupLeft = async (): Promise<void> => {
   if (!activeTerminal || !piTerminalSessions.has(activeTerminal)) return;
   const groups = vscode.window.tabGroups;
   const fileGroup = groups.activeTabGroup;
-  if (!(fileGroup.activeTab?.input instanceof vscode.TabInputText)) return;
+  const input = fileGroup.activeTab?.input;
+  if (!(input instanceof vscode.TabInputText || input instanceof vscode.TabInputTextDiff)) return;
   const terminalGroup = groups.all.find(
     (group) => group.tabs.length > 0 && group.tabs.every((tab) => tab.input instanceof vscode.TabInputTerminal),
   );

@@ -21,6 +21,7 @@ import {
 } from "../shared/config.js";
 import { DEFAULT_STATUS_DISPLAY, STATUS_DISPLAY_VALUES, type StatusDisplay } from "../shared/config-options.js";
 import { logExtensionError } from "../shared/errors.js";
+import { isAutoInstallEnabled } from "./install.js";
 import type { PiIdeRuntime } from "./state.js";
 import { updateIdeUi } from "./ui.js";
 
@@ -64,7 +65,7 @@ export async function showIdeSettings(
 
     const draft: IdeConfigSettings = {
       display: resolved.settings.display ?? DEFAULT_STATUS_DISPLAY,
-      autoInstall: resolved.settings.autoInstall,
+      autoInstall: isAutoInstallEnabled(process.env, { projectDir: ctx.cwd, home: options.home }),
     };
 
     const items: SettingItem[] = [
@@ -78,7 +79,7 @@ export async function showIdeSettings(
       {
         id: AUTO_INSTALL_SETTING_ID,
         label: "AutoInstall",
-        description: "Auto-install VS Code-family extension on Pi startup (PI_X_IDE_AUTO_INSTALL)",
+        description: "Install bundled VS Code extension on startup (PI_X_IDE_AUTO_INSTALL)",
         currentValue: draft.autoInstall ? "true" : "false",
         values: [...BOOLEAN_SETTING_VALUES],
       },

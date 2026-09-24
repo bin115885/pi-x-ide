@@ -9,6 +9,8 @@ import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-c
 import {
   buildInstallArgs,
   compareExtensionVersions,
+  LOCAL_VSCODE_EXTENSION_ID,
+  LOCAL_VSCODE_VERSION,
   inferCurrentIdeFromEnv,
   isAutoInstallEnabled,
   parseInstalledExtensionVersion,
@@ -27,6 +29,9 @@ import { CONFIG_DIR_NAME, resolvePiConfigEnv } from "../src/shared/config.js";
 
 void test("checks auto-install env gate", () => {
   assert.equal(isAutoInstallEnabled({}), false);
+  assert.equal(isAutoInstallEnabled({ TERM_PROGRAM: "vscode" }), true);
+  assert.equal(isAutoInstallEnabled({ TERM_PROGRAM: "vscode", CURSOR_TRACE_ID: "trace" }), false);
+  assert.equal(isAutoInstallEnabled({ TERM_PROGRAM: "vscode", PI_X_IDE_AUTO_INSTALL: "0" }), false);
   assert.equal(isAutoInstallEnabled({ PI_X_IDE_AUTO_INSTALL: "0" }), false);
   assert.equal(isAutoInstallEnabled({ PI_X_IDE_AUTO_INSTALL: "false" }), false);
   assert.equal(isAutoInstallEnabled({ PI_X_IDE_AUTO_INSTALL: "OFF" }), false);
@@ -49,6 +54,7 @@ void test("parses installed extension versions", () => {
   const output = ["publisher.other@0.1.0", "balaenis.pi-x-ide@1.2.3", "BALAENIS.PI-X-IDE@1.2.4"].join("\n");
 
   assert.equal(parseInstalledExtensionVersion(output), "1.2.3");
+  assert.equal(parseInstalledExtensionVersion("qd.pi-x-ide@1.19.3", LOCAL_VSCODE_EXTENSION_ID), "1.19.3");
   assert.equal(parseInstalledExtensionVersion("publisher.other@0.1.0"), undefined);
 });
 
@@ -82,8 +88,11 @@ void test("selects only one high-confidence auto-install candidate", () => {
   assert.equal(selectAutoInstallCandidate([cursor], { CURSOR_TRACE_ID: "trace" }), cursor);
 });
 
-void test("builds forced Marketplace install args", () => {
-  assert.deepEqual(buildInstallArgs(), ["--force", "--install-extension", PI_X_IDE_EXTENSION_ID]);
+void test("installs the bundled local VS Code extension only for VS Code", () => {
+  const args = buildInstallArgs({ id: "vscode" });
+  assert.deepEqual(args.slice(0, 2), ["--force", "--install-extension"]);
+  assert.equal(args[2]?.endsWith(`${LOCAL_VSCODE_EXTENSION_ID}-${LOCAL_VSCODE_VERSION}.vsix`), true);
+  assert.deepEqual(buildInstallArgs({ id: "cursor" }), ["--force", "--install-extension", PI_X_IDE_EXTENSION_ID]);
 });
 
 void test("resolves configurable Pi TUI attach shortcut", () => {

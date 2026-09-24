@@ -82,7 +82,7 @@ custom command. See
 
 | Variable                        | Default       | Description                                                                            |
 | ------------------------------- | ------------- | -------------------------------------------------------------------------------------- |
-| `PI_X_IDE_AUTO_INSTALL`         | `0`           | Auto-install the VS Code extension on Pi startup when enabled (`1`/`true`); disabled by default. Also configurable as `AutoInstall` in `/ide settings`. |
+| `PI_X_IDE_AUTO_INSTALL`         | VS Code: on   | Install bundled VSIX in VS Code; set `0` to disable.                                 |
 | `PI_X_IDE_ATTACH_SHORTCUT`      | `ctrl+alt+k`  | Pi TUI shortcut for `/ide attach`. Set to `off`, `none`, `false`, or `0` to disable.   |
 | `PI_X_IDE_HOST_OVERRIDE`        | (unset)       | Override the host Pi uses for IDE WebSocket connections. Useful for WSL2 networking.   |
 | `PI_X_IDE_ZED_DB`               | (auto-detect) | Override the path to Zed's SQLite database.                                            |

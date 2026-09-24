@@ -8,15 +8,15 @@ Pi × IDE 通过一个扩展集成 VS Code、Cursor 和 Windsurf。本指南介�
 - 已安装 Pi 包：`pi install npm:pi-x-ide`。
 - VS Code、Cursor 或 Windsurf。
 
-## 方式一：从 Marketplace 安装（推荐）
+## 方式一：从 Marketplace 安装
 
 在 IDE 的 **扩展** 面板搜索
 [`balaenis.pi-x-ide`](https://marketplace.visualstudio.com/items?itemName=balaenis.pi-x-ide)
 并安装。安装后重新加载窗口。
 
-## 可选：Pi 启动时自动安装
+## Pi 启动时自动安装
 
-如显式设置 `PI_X_IDE_AUTO_INSTALL=1`，Pi 从受支持的 VS Code 集成终端启动时可安装或更新市场扩展。默认关闭。
+本仓库随附 `qd.pi-x-ide` 的 VSIX。从 VS Code 集成终端启动 Pi 时，若未安装或版本较旧，会自动从仓库安装；其他 IDE 不会默认安装本地版。设置 `PI_X_IDE_AUTO_INSTALL=0` 可关闭；手动 `git pull` 更新后需重新构建 Pi 扩展并重启 Pi。
 其他选项见 [配置参考](../reference/configuration.md)。
 
 ## 验证连接

@@ -1,9 +1,11 @@
 // ABOUTME: Discovers and installs companion IDE extensions for supported editors.
 // ABOUTME: Detects editor CLIs, compares installed versions, and runs extension installation commands.
 import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { access } from "node:fs/promises";
-import { delimiter, isAbsolute, join } from "node:path";
+import { delimiter, dirname, isAbsolute, join } from "node:path";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import * as Effect from "effect/Effect";
 import { resolvePiConfigEnv } from "../shared/config.js";
 import { InstallCommandError } from "../shared/effect-errors.js";
@@ -15,6 +17,8 @@ const execFileAsync = promisify(execFile);
 export const PI_X_IDE_EXTENSION_ID = "balaenis.pi-x-ide";
 export const PI_X_IDE_AUTO_INSTALL_ENV = "PI_X_IDE_AUTO_INSTALL";
 export const PI_X_IDE_TARGET_VERSION = PI_X_IDE_VERSION;
+export const LOCAL_VSCODE_EXTENSION_ID = "qd.pi-x-ide";
+export const LOCAL_VSCODE_VERSION = "1.19.4";
 
 const DEFAULT_LIST_EXTENSIONS_TIMEOUT_MS = 15_000;
 const DEFAULT_INSTALL_EXTENSION_TIMEOUT_MS = 60_000;
@@ -73,7 +77,7 @@ export function isAutoInstallEnabled(
 ): boolean {
   const configuredEnv = resolvePiConfigEnv(env, options);
   const value = configuredEnv[PI_X_IDE_AUTO_INSTALL_ENV];
-  if (value === undefined) return false;
+  if (value === undefined) return inferCurrentIdeFromEnv(configuredEnv) === "vscode";
   return !["0", "false", "off"].includes(value.trim().toLowerCase());
 }
 
@@ -150,8 +154,16 @@ function envValueMatches(value: string | undefined, patterns: RegExp[]): boolean
   return upperValue ? patterns.some((pattern) => pattern.test(upperValue)) : false;
 }
 
-export function buildInstallArgs(): string[] {
-  return ["--force", "--install-extension", PI_X_IDE_EXTENSION_ID];
+const bundledVscodeVsix = (): string => {
+  for (let dir = dirname(fileURLToPath(import.meta.url)); ; dir = dirname(dir)) {
+    const vsix = join(dir, "ide-plugins", "vscode", `${LOCAL_VSCODE_EXTENSION_ID}-${LOCAL_VSCODE_VERSION}.vsix`);
+    if (existsSync(vsix)) return vsix;
+    if (dir === dirname(dir)) throw new Error("Bundled VS Code extension not found");
+  }
+};
+
+export function buildInstallArgs(candidate: Pick<IdeInstallCandidate, "id">): string[] {
+  return ["--force", "--install-extension", candidate.id === "vscode" ? bundledVscodeVsix() : PI_X_IDE_EXTENSION_ID];
 }
 
 export async function findExecutable(
@@ -205,11 +217,12 @@ export async function runCli(
 function listExtensionVersion(
   cliPath: string,
   timeoutMs: number,
+  extensionId: string,
 ): Effect.Effect<{ installedVersion?: string; listError?: string }, never, never> {
   return Effect.promise(async () => {
     try {
       const { stdout } = await runCli(cliPath, ["--list-extensions", "--show-versions"], timeoutMs);
-      return { installedVersion: parseInstalledExtensionVersion(stdout) };
+      return { installedVersion: parseInstalledExtensionVersion(stdout, extensionId) };
     } catch (error) {
       return { listError: error instanceof Error ? error.message : String(error) };
     }
@@ -232,8 +245,10 @@ export function discoverInstallCandidatesEffect(
       const confidence: IdeInstallConfidence = currentIde === profile.id ? "current-terminal" : "available-cli";
       if (confidence !== "current-terminal") continue;
 
-      const { installedVersion, listError } = yield* listExtensionVersion(cliPath, timeoutMs);
-      const reason = resolveInstallReason(installedVersion, PI_X_IDE_TARGET_VERSION, listError);
+      const extensionId = profile.id === "vscode" ? LOCAL_VSCODE_EXTENSION_ID : PI_X_IDE_EXTENSION_ID;
+      const targetVersion = profile.id === "vscode" ? LOCAL_VSCODE_VERSION : PI_X_IDE_TARGET_VERSION;
+      const { installedVersion, listError } = yield* listExtensionVersion(cliPath, timeoutMs, extensionId);
+      const reason = resolveInstallReason(installedVersion, targetVersion, listError);
       candidates.push({
         id: profile.id,
         label: profile.label,
@@ -241,7 +256,7 @@ export function discoverInstallCandidatesEffect(
         cliPath,
         confidence,
         installedVersion,
-        targetVersion: PI_X_IDE_TARGET_VERSION,
+        targetVersion,
         needsInstall: reason === "missing" || reason === "outdated" || reason === "unknown",
         reason,
         listError,
@@ -300,7 +315,7 @@ export function installIdeExtensionEffect(
       try {
         const { stdout, stderr } = await runCli(
           candidate.cliPath,
-          buildInstallArgs(),
+          buildInstallArgs(candidate),
           options.timeoutMs ?? DEFAULT_INSTALL_EXTENSION_TIMEOUT_MS,
         );
         return { candidate, skipped: false, success: true, stdout, stderr };

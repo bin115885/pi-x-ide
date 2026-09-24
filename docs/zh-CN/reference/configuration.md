@@ -76,7 +76,7 @@ require("pi_x_ide").setup({
 
 | 变量                            | 默认值       | 说明                                                                        |
 | ------------------------------- | ------------ | --------------------------------------------------------------------------- |
-| `PI_X_IDE_AUTO_INSTALL`         | `0`          | 默认不自动安装 VS Code 扩展；设为 `1`/`true` 可启用，也可在 `/ide settings` 中配置 `AutoInstall`。 |
+| `PI_X_IDE_AUTO_INSTALL`         | VS Code：开启 | VS Code 终端启动 Pi 时安装仓库内 VSIX；设 `0` 可关闭。                     |
 | `PI_X_IDE_ATTACH_SHORTCUT`      | `ctrl+alt+k` | Pi TUI 的 `/ide attach` 快捷键。设为 `off`、`none`、`false` 或 `0` 可禁用。 |
 | `PI_X_IDE_HOST_OVERRIDE`        | （未设置）   | 覆盖 Pi 连接 IDE WebSocket 时使用的 host。适用于 WSL2 网络场景。            |
 | `PI_X_IDE_ZED_DB`               | （自动检测） | 覆盖 Zed SQLite 数据库路径。                                                |

@@ -9,18 +9,16 @@ This guide covers the three install paths and how to verify the connection.
 - The `pi-x-ide` Pi package installed: `pi install npm:pi-x-ide`.
 - VS Code, Cursor, or Windsurf.
 
-## Option A: Install from the Marketplace (recommended)
+## Option A: Install from the Marketplace
 
 Open your IDE's **Extensions** panel and search for
 [`balaenis.pi-x-ide`](https://marketplace.visualstudio.com/items?itemName=balaenis.pi-x-ide),
 then install it. Reload the window after installing.
 
-## Optional: Auto-install on Pi startup
+## Auto-install on Pi startup
 
-When explicitly enabled with `PI_X_IDE_AUTO_INSTALL=1`, Pi can install or update
-the Marketplace extension from a supported VS Code integrated terminal.
-This is disabled by default. See the
-[configuration reference](../reference/configuration.md) for all Pi-side options.
+This repository includes the `qd.pi-x-ide` VSIX. When Pi starts inside a VS Code integrated terminal, it installs the bundled extension if it is missing or outdated. Other IDEs do not install the local VSIX by default. Set `PI_X_IDE_AUTO_INSTALL=0` to opt out. After a manual `git pull`, rebuild the Pi extension and restart Pi.
+See the [configuration reference](../reference/configuration.md) for other options.
 
 ## Verify the connection
 

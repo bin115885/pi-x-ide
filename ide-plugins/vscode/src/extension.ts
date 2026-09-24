@@ -17,7 +17,6 @@ import {
 import { IdeWebSocketServer } from "./server";
 import { getActiveSelectionSnapshot } from "./selection";
 
-const PI_TERMINAL_NAME = "pi";
 const CONFIG_SECTION = "piXIde";
 const USE_TMUX_CONFIG_KEY = "useTmux";
 
@@ -80,6 +79,10 @@ async function activateExtension(context: vscode.ExtensionContext): Promise<void
   context.subscriptions.push(
     vscode.window.onDidChangeActiveTextEditor(() => scheduleSelectionBroadcast()),
     vscode.window.onDidChangeTextEditorSelection(() => scheduleSelectionBroadcast()),
+    vscode.window.onDidChangeActiveTerminal(() => {
+      const snapshot = getActiveSelectionSnapshot();
+      updateStatus(snapshot?.ranges.length ? "selection" : snapshot ? "file" : "no-file");
+    }),
     vscode.window.tabGroups.onDidChangeTabs(() => scheduleSelectionBroadcast()),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       refreshLock().catch((error: unknown) => handleRefreshLockError(error));
@@ -230,16 +233,21 @@ function updateStatus(state: "ready" | "file" | "selection" | "no-file"): void {
   if (!status || !server) return;
   const suffix = server.clientCount > 0 ? `${server.clientCount} Pi` : "waiting";
   const icon = state === "selection" ? "$(symbol-string)" : state === "file" ? "$(file-code)" : "$(plug)";
-  status.text = `${icon} Pi x IDE ${suffix}`;
-  status.tooltip = `Pi x IDE WebSocket server on protocol v${PROTOCOL_VERSION}. Click to attach the active selection.`;
+  const terminal = vscode.window.activeTerminal;
+  status.text = `${icon} Pi x IDE ${suffix}${terminal ? ` → ${terminal.name}` : ""}`;
+  status.tooltip = terminal
+    ? `Last focused terminal: ${terminal.name}. Click to attach the active selection; the target must be connected and in the same workspace.`
+    : `Pi x IDE WebSocket server on protocol v${PROTOCOL_VERSION}. Click to attach the active selection.`;
   status.show();
 }
 
 function openPiTerminal(context: vscode.ExtensionContext): void {
   const useTmux = vscode.workspace.getConfiguration(CONFIG_SECTION).get<boolean>(USE_TMUX_CONFIG_KEY, false);
   const sessionId = randomUUID();
+  const terminalGroup = vscode.window.tabGroups.all.find(
+    (group) => group.tabs.length > 0 && group.tabs.every((tab) => tab.input instanceof vscode.TabInputTerminal),
+  );
   const terminal = vscode.window.createTerminal({
-    name: PI_TERMINAL_NAME,
     env: { [TERMINAL_SESSION_ENV]: sessionId },
     hideFromUser: true,
     iconPath: {
@@ -247,7 +255,7 @@ function openPiTerminal(context: vscode.ExtensionContext): void {
       dark: vscode.Uri.file(context.asAbsolutePath("assets/icons/icon-dark.png")),
     },
     location: {
-      viewColumn: vscode.ViewColumn.Beside,
+      viewColumn: terminalGroup?.viewColumn ?? vscode.ViewColumn.Beside,
       preserveFocus: false,
     },
   });

@@ -4,7 +4,7 @@
   "description": "Pi extension package for IDE selection context integration.",
   "files": [
     "dist/src",
-    "ide-plugins/vscode/qd.pi-x-ide-1.19.4.vsix",
+    "ide-plugins/vscode/qd.pi-x-ide-1.19.5.vsix",
     "schemas",
     "docs/tutorials",
     "docs/how-to",

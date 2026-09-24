@@ -2,7 +2,7 @@
 // ABOUTME: Publishes editor selections to Pi while containing extension-host callback failures.
 import * as vscode from "vscode";
 import { randomUUID } from "node:crypto";
-import { PROTOCOL_VERSION, TERMINAL_SESSION_ENV, type EditorSelectionSnapshot } from "@shared/protocol";
+import { TERMINAL_SESSION_ENV, type EditorSelectionSnapshot } from "@shared/protocol";
 import { formatRangeMention } from "@shared/format";
 import { errorMessage, logExtensionError, safeRun, safeRunAsync } from "@shared/errors";
 import { registerDiagnosticQuickFixes } from "./diagnostics";
@@ -24,7 +24,6 @@ let server: IdeWebSocketServer | undefined;
 let lockFilePath: string | undefined;
 let lockFile = undefined as ReturnType<typeof createLockFile> | undefined;
 let debounceTimer: NodeJS.Timeout | undefined;
-let status: vscode.StatusBarItem | undefined;
 let tmuxSessionCounter = 0;
 const piTerminalSessions = new WeakMap<vscode.Terminal, string>();
 
@@ -68,22 +67,20 @@ async function activateExtension(context: vscode.ExtensionContext): Promise<void
   lockFile = createLockFile(port, authToken);
   await writeIdeLockFile(lockFilePath, lockFile);
 
-  status = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  status.name = "Pi x IDE";
-  status.command = "pi-x-ide.attachSelection";
-  context.subscriptions.push(status);
-  updateStatus("ready");
-
   registerDiagnosticQuickFixes(context, () => server, selectedPiTarget);
 
   context.subscriptions.push(
-    vscode.window.onDidChangeActiveTextEditor(() => scheduleSelectionBroadcast()),
-    vscode.window.onDidChangeTextEditorSelection(() => scheduleSelectionBroadcast()),
-    vscode.window.onDidChangeActiveTerminal(() => {
-      const snapshot = getActiveSelectionSnapshot();
-      updateStatus(snapshot?.ranges.length ? "selection" : snapshot ? "file" : "no-file");
+    vscode.window.onDidChangeActiveTextEditor((editor) => {
+      scheduleSelectionBroadcast();
+      if (editor) void runVscodeAsync("keep files left of Pi", moveFileGroupLeft);
     }),
+    vscode.window.onDidChangeTextEditorSelection(() => scheduleSelectionBroadcast()),
     vscode.window.tabGroups.onDidChangeTabs(() => scheduleSelectionBroadcast()),
+    vscode.window.tabGroups.onDidChangeTabGroups((event) => {
+      if (event.opened.length || event.changed.some((group) => group.isActive)) {
+        setTimeout(() => void runVscodeAsync("keep files left of Pi", moveFileGroupLeft), 0);
+      }
+    }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       refreshLock().catch((error: unknown) => handleRefreshLockError(error));
       scheduleSelectionBroadcast();
@@ -120,8 +117,6 @@ async function cleanup(): Promise<void> {
   lockFilePath = undefined;
   await server?.stop();
   server = undefined;
-  status?.dispose();
-  status = undefined;
 }
 
 async function refreshLock(): Promise<void> {
@@ -146,19 +141,8 @@ function scheduleSelectionBroadcast(delayMs = 150): void {
 
 function broadcastSelection(): void {
   const snapshot = getActiveSelectionSnapshot();
-  if (!server) {
-    updateStatus("no-file");
-    return;
-  }
-
-  if (!snapshot) {
-    server.broadcastSelection();
-    updateStatus("no-file");
-    return;
-  }
-
+  if (!server) return;
   server.broadcastSelection(snapshot);
-  updateStatus(snapshot.ranges.length > 0 ? "selection" : "file");
 }
 
 async function attachSelection(): Promise<void> {
@@ -229,17 +213,23 @@ async function attachSnapshots(snapshots: EditorSelectionSnapshot[]): Promise<vo
   target.terminal.show(false);
 }
 
-function updateStatus(state: "ready" | "file" | "selection" | "no-file"): void {
-  if (!status || !server) return;
-  const suffix = server.clientCount > 0 ? `${server.clientCount} Pi` : "waiting";
-  const icon = state === "selection" ? "$(symbol-string)" : state === "file" ? "$(file-code)" : "$(plug)";
-  const terminal = vscode.window.activeTerminal;
-  status.text = `${icon} Pi x IDE ${suffix}${terminal ? ` → ${terminal.name}` : ""}`;
-  status.tooltip = terminal
-    ? `Last focused terminal: ${terminal.name}. Click to attach the active selection; the target must be connected and in the same workspace.`
-    : `Pi x IDE WebSocket server on protocol v${PROTOCOL_VERSION}. Click to attach the active selection.`;
-  status.show();
-}
+const moveFileGroupLeft = async (): Promise<void> => {
+  const activeTerminal = vscode.window.activeTerminal;
+  if (!activeTerminal || !piTerminalSessions.has(activeTerminal)) return;
+  const groups = vscode.window.tabGroups;
+  const fileGroup = groups.activeTabGroup;
+  if (!(fileGroup.activeTab?.input instanceof vscode.TabInputText)) return;
+  const terminalGroup = groups.all.find(
+    (group) => group.tabs.length > 0 && group.tabs.every((tab) => tab.input instanceof vscode.TabInputTerminal),
+  );
+  if (!terminalGroup) return;
+  for (let i = 0; i < groups.all.length && fileGroup.viewColumn > terminalGroup.viewColumn; i++) {
+    if (groups.activeTabGroup !== fileGroup) break;
+    const column = fileGroup.viewColumn;
+    await vscode.commands.executeCommand("workbench.action.moveActiveEditorGroupLeft");
+    if (fileGroup.viewColumn >= column) break;
+  }
+};
 
 function openPiTerminal(context: vscode.ExtensionContext): void {
   const useTmux = vscode.workspace.getConfiguration(CONFIG_SECTION).get<boolean>(USE_TMUX_CONFIG_KEY, false);

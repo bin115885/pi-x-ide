@@ -18,7 +18,7 @@ export const PI_X_IDE_EXTENSION_ID = "balaenis.pi-x-ide";
 export const PI_X_IDE_AUTO_INSTALL_ENV = "PI_X_IDE_AUTO_INSTALL";
 export const PI_X_IDE_TARGET_VERSION = PI_X_IDE_VERSION;
 export const LOCAL_VSCODE_EXTENSION_ID = "qd.pi-x-ide";
-export const LOCAL_VSCODE_VERSION = "1.19.4";
+export const LOCAL_VSCODE_VERSION = "1.19.5";
 
 const DEFAULT_LIST_EXTENSIONS_TIMEOUT_MS = 15_000;
 const DEFAULT_INSTALL_EXTENSION_TIMEOUT_MS = 60_000;

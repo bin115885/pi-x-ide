@@ -1,7 +1,7 @@
 node_modules/
 dist/
 *.vsix
-!ide-plugins/vscode/qd.pi-x-ide-1.19.4.vsix
+!ide-plugins/vscode/qd.pi-x-ide-1.19.5.vsix
 .DS_Store
 .pi*
 .worktrees

@@ -44,6 +44,10 @@ Pi 仅在终端 `cwd` **位于** IDE workspace 文件夹内时自动连接。如
 
 显示当前连接、workspace 和最近选区。若报告无连接，运行 `/ide list` 查看 Pi 找到的候选 lock file。
 
+
+若 VS Code 提示选中的 Pi 终端已断开或属于其他工作区，打开 **输出 → Pi x IDE**，
+查看最新的 `Terminal send failed` 记录。它只记录目标类型/标识、在线连接数、
+目标匹配数及工作区匹配标志，不记录文件内容、选中文本或认证令牌。
 ## 5. 过期或死进程 lock file
 
 如果上一个 IDE 实例崩溃，lock file 可能残留。Pi 通常会回收超过 24 小时或 PID 已死的文件，但可以强制清理：

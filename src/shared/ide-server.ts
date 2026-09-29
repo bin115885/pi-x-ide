@@ -26,6 +26,7 @@ export class IdeWebSocketServer {
     private readonly authToken: string,
     private readonly serverInfo: { name: string; version?: string; ide?: IdeSource },
     private readonly getInitialSelection?: () => EditorSelectionSnapshot | undefined,
+    private readonly onTerminalSendFailure?: (details: string) => void,
   ) {}
 
   get port(): number {
@@ -122,11 +123,27 @@ export class IdeWebSocketServer {
     workspaceFolder?: string,
   ): boolean {
     const sessions = typeof terminal === "string" ? this.terminalSessions : this.terminalProcessIds;
-    const sockets = this.openSockets.filter((client) => sessions.get(client) === terminal);
-    const socket = sockets.length === 1 ? sockets[0] : undefined;
-    return socket && this.matchesWorkspace(socket, { filePath, workspaceFolder })
-      ? this.sendValue(socket, value, "terminal send")
-      : false;
+    const clients = this.openSockets;
+    const matches = clients.filter((client) => sessions.get(client) === terminal);
+    const socket = matches.length === 1 ? matches[0] : undefined;
+    const workspaceMatches =
+      !!socket && !!workspaceFolder && this.workspaceFolders.get(socket) === normalizePath(workspaceFolder);
+    const fileInsideWorkspace = !!workspaceFolder && isPathInsideOrEqual(workspaceFolder, filePath);
+    if (socket && workspaceMatches && fileInsideWorkspace) {
+      const sent = this.sendValue(socket, value, "terminal send");
+      if (sent) return true;
+    }
+    const reason = !socket
+      ? matches.length
+        ? "ambiguous_target"
+        : "no_target"
+      : !workspaceMatches || !fileInsideWorkspace
+        ? "workspace_mismatch"
+        : "send_failed";
+    this.onTerminalSendFailure?.(
+      `reason=${reason} targetType=${typeof terminal} target=${terminal} clients=${clients.length} matches=${matches.length} workspaceMatches=${workspaceMatches} fileInsideWorkspace=${fileInsideWorkspace}`,
+    );
+    return false;
   }
 
   async stop(): Promise<void> {

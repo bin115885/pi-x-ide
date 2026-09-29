@@ -25,7 +25,10 @@ void test("sends targeted notifications to only one connected client", async () 
 });
 
 void test("routes attaches only to the selected terminal session", async () => {
-  const server = new IdeWebSocketServer("token", { name: "Test IDE", ide: "vscode" });
+  const failures: string[] = [];
+  const server = new IdeWebSocketServer("token", { name: "Test IDE", ide: "vscode" }, undefined, (details) =>
+    failures.push(details),
+  );
   const port = await server.start();
   const clients = await Promise.all([connectClient(port), connectClient(port)]);
   const received = clients.map(collectMessages);
@@ -81,6 +84,11 @@ void test("routes attaches only to the selected terminal session", async () => {
         false,
       );
       assert.equal(received[1].length, 1);
+      assert.match(failures[0], /reason=no_target .*clients=2 matches=0/);
+      assert.match(failures[1], /reason=workspace_mismatch .*workspaceMatches=false/);
+      assert.match(failures[2], /reason=workspace_mismatch .*fileInsideWorkspace=false/);
+      assert.match(failures[4], /reason=ambiguous_target .*clients=3 matches=2/);
+      assert.ok(failures.every((details) => !details.includes("token") && !details.includes("a.ts")));
     } finally {
       duplicate.close();
     }

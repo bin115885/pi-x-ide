@@ -52,6 +52,11 @@ Run:
 This shows the current connection, workspace, and most recent selection. If it
 reports no connection, run `/ide list` to see the candidate lock files Pi found.
 
+
+If VS Code warns that the selected Pi terminal is disconnected or belongs to another workspace,
+open **Output → Pi x IDE** and inspect the latest `Terminal send failed` entry.
+It records the target type/ID, connected client and matching-target counts, and workspace match flags;
+it does not record file contents, selected text, or authentication tokens.
 ## 5. Stale or dead lock files
 
 If a previous IDE instance crashed, its lock file may linger. Pi normally reclaims

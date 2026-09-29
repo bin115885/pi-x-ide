@@ -53,6 +53,8 @@ async function activateExtension(context: vscode.ExtensionContext): Promise<void
   const packageJson = context.extension.packageJSON as { version?: string };
   const authToken = createAuthToken();
 
+  const diagnostics = vscode.window.createOutputChannel("Pi x IDE", { log: true });
+  context.subscriptions.push(diagnostics);
   server = new IdeWebSocketServer(
     authToken,
     {
@@ -60,6 +62,7 @@ async function activateExtension(context: vscode.ExtensionContext): Promise<void
       version: packageJson.version,
     },
     getActiveSelectionSnapshot,
+    (details) => diagnostics.warn(`Terminal send failed: ${details}`),
   );
 
   const port = await server.start();

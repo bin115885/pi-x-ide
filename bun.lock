@@ -5,7 +5,9 @@
     "": {
       "name": "pi-x-ide",
       "dependencies": {
+        "@pi-x-ide/build-tui": "npm:@earendil-works/pi-tui@^0.80.1",
         "effect": "^3.22.0",
+        "esbuild": "^0.28.1",
         "ws": "^8.21.0",
       },
       "devDependencies": {
@@ -15,7 +17,6 @@
         "@types/node": "^26.0.0",
         "@types/ws": "^8.18.1",
         "@vscode/vsce": "^3.9.2",
-        "esbuild": "^0.28.1",
         "eslint": "^10.4.1",
         "eslint-config-prettier": "^10.1.8",
         "prettier": "^3.8.4",
@@ -29,7 +30,7 @@
     },
     "ide-plugins/vscode": {
       "name": "pi-x-ide",
-      "version": "1.16.3",
+      "version": "1.19.5",
       "dependencies": {
         "ws": "^8.21.0",
       },
@@ -252,6 +253,8 @@
     "@opentelemetry/api": ["@opentelemetry/api@1.9.0", "", {}, "sha512-3giAOQvZiH5F9bMlMiv8+GSPMeqg0dbaeo58/0SlA9sxSqZhnUtxzX9/2FzyhS9sWQf5S0GJE0AKBrFqjpeYcg=="],
 
     "@opentelemetry/semantic-conventions": ["@opentelemetry/semantic-conventions@1.41.1", "", {}, "sha512-/UhIkaZgPutTFmQ7RnIJGgDXZmtEJ7Dvi86xNTFWcnRxVRNk/aotsqDJYeEvDP+FSMB2SdW+pQzNMcWP0rwuNA=="],
+
+    "@pi-x-ide/build-tui": ["@earendil-works/pi-tui@0.80.1", "", { "dependencies": { "get-east-asian-width": "1.6.0", "marked": "18.0.5" } }, "sha512-lmXGOiFv5KMati4VfdQt1L/7/m4yiJ8Xqm96COgkURPXhWqRFOMboqDJzyLMyKUpDnyQPS0OenVmHMn/uys3Lw=="],
 
     "@protobufjs/aspromise": ["@protobufjs/aspromise@1.1.2", "", {}, "sha512-j+gKExEuLmKwvz3OgROXtrJ2UG2x8Ch2YZUxahh+s1F2HZ+wAceUNLkvy6zKCPVRkU++ZWQrdxsUeQXmcg4uoQ=="],
 

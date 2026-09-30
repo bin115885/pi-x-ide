@@ -54,6 +54,7 @@
   "type": "module",
   "main": "./dist/src/pi/index.js",
   "dependencies": {
+    "@pi-x-ide/build-tui": "npm:@earendil-works/pi-tui@^0.80.1",
     "effect": "^3.22.0",
     "esbuild": "^0.28.1",
     "ws": "^8.21.0"

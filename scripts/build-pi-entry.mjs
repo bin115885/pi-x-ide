@@ -24,6 +24,7 @@ const HEAVY_INPUT_MARKERS = [
   "node_modules/ws/",
   "node:sqlite",
   "node_modules/@earendil-works/pi-tui/",
+  "node_modules/@pi-x-ide/build-tui/",
 ];
 const MAX_ENTRY_BYTES = 100 * 1024;
 const MAX_TOTAL_PI_ENTRY_BYTES = 1.5 * 1024 * 1024;
@@ -51,6 +52,8 @@ async function main() {
     entryNames: "index",
     chunkNames: "chunks/[name]-[hash]",
     external: [...PI_HOST_EXTERNAL_ALLOWLIST],
+    // 构建副本使用独立别名，精简安装无需安装宿主 peer 依赖。
+    alias: { "@earendil-works/pi-tui": "@pi-x-ide/build-tui" },
     banner: {
       js: nodeCreateRequireBanner,
     },
